@@ -16,6 +16,14 @@ a = Analysis(
         ('app/ui/assets/fonts/NanumGothic-Bold.ttf', 'app/ui/assets/fonts'),
         # 체크박스 체크 표시 아이콘 (app/config.py의 checkmark_icon_path() 참고)
         ('app/ui/assets/checkmark.png', 'app/ui/assets'),
+        # QSpinBox 위/아래 화살표 아이콘 (app/config.py의
+        # spin_arrow_icon_path() 참고) — 이 datas 목록에 안 넣으면
+        # 개발 환경(python main.py)에서는 소스 트리 경로로 잘 뜨다가,
+        # 배포된 exe에서만 sys._MEIPASS 밑에 파일이 없어서 화살표가 조용히
+        # 안 보이는 문제가 실제로 있었다(위 나눔고딕 폰트 주석과 같은 종류의
+        # 함정 — QTest로 python main.py를 검증해도 안 걸러진다).
+        ('app/ui/assets/spin_up_arrow.png', 'app/ui/assets'),
+        ('app/ui/assets/spin_down_arrow.png', 'app/ui/assets'),
         # 트레이/창 아이콘을 런타임에 QIcon으로 다시 로드하기 위해 필요
         # (app/config.py의 icon_path() 참고). EXE 리소스 아이콘(icon=
         # 파라미터, 아래)과는 별개 — 그건 exe 파일 자체의 아이콘일 뿐,
