@@ -135,11 +135,9 @@ class _SettingsFormMixin:
         나뉘기 전에는 이 모달 하나에 전부 들어있었지만, 지금은 카드별로
         내용이 겹치지 않아야 한다).
         다이얼로그의 제목/버튼 행 등 겉모습은 호출부의 _build_ui에서
-        따로 만든다."""
-        ai_title = QLabel("Gemini AI")
-        ai_title.setObjectName("SectionTitle")
-        root.addWidget(ai_title)
-
+        따로 만든다 — 그래서 여기서는 "Gemini AI" 제목을 또 넣지 않는다
+        (호출부 AISettingsDialog._build_ui가 PageTitle로 이미 넣으므로,
+        여기서도 넣으면 같은 제목이 두 번 겹쳐 보인다)."""
         desc = QLabel(
             "이 프로그램은 선생님 본인의 Gemini API 키를 사용합니다. 키는 이 PC의\n"
             "Windows 자격 증명 관리자에 암호화되어 저장되며, 앱 개발자나 다른 교사는\n"

@@ -10,7 +10,7 @@ from datetime import date
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
-    QFrame, QMessageBox, QApplication
+    QFrame, QDialog, QMessageBox, QApplication
 )
 
 from .. import db
@@ -62,6 +62,52 @@ class _FilterTab(ClickableCard):
         for w in (self, self.label_widget):
             w.style().unpolish(w)
             w.style().polish(w)
+
+
+class _DailyNoteResultDialog(QDialog):
+    """[오늘 알림장 만들기] 결과를 보여주는 창. QMessageBox.information()
+    대신 직접 만든 이유: QMessageBox는 본문에 스크롤 영역이 없어서,
+    업무가 많아 본문이 길어지면 창이 화면 높이보다 커져도 그냥 계속
+    늘어나기만 하고 OK 버튼이 화면 밖으로 밀려나 눌리지 않는 경우가
+    있었다. 여기서는 본문만 QScrollArea에 넣고 OK 버튼은 항상 스크롤
+    영역 밖 하단에 고정해서, 창 자체 높이를 화면 안에 묶어 둬도(최대
+    높이 제한) 본문을 끝까지 스크롤해서 읽고 OK를 누를 수 있다."""
+
+    def __init__(self, note_text: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("알림장 생성 완료")
+        self.setMinimumWidth(480)
+        self.setMaximumHeight(640)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 22)
+        root.setSpacing(14)
+
+        title = QLabel("알림장 생성 완료")
+        title.setObjectName("PageTitle")
+        root.addWidget(title)
+
+        copied_label = QLabel("(클립보드에 복사되었습니다)")
+        copied_label.setObjectName("Muted")
+        root.addWidget(copied_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        note_label = QLabel(note_text)
+        note_label.setWordWrap(True)
+        note_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        scroll.setWidget(note_label)
+        root.addWidget(scroll, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        ok_btn = QPushButton("OK")
+        ok_btn.setObjectName("PrimaryButton")
+        ok_btn.setCursor(Qt.PointingHandCursor)
+        ok_btn.clicked.connect(self.accept)
+        btn_row.addWidget(ok_btn)
+        root.addLayout(btn_row)
 
 
 class TaskListView(QWidget):
@@ -301,4 +347,4 @@ class TaskListView(QWidget):
             "note_text": note,
         })
 
-        QMessageBox.information(self, "알림장 생성 완료", note + "\n\n(클립보드에 복사되었습니다)")
+        _DailyNoteResultDialog(note, self).exec()

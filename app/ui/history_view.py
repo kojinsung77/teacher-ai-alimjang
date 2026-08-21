@@ -205,11 +205,16 @@ class HistoryView(QWidget):
             row.setProperty("active", d == date_str)
             row.style().unpolish(row)
             row.style().polish(row)
-            # 카드에 QGraphicsDropShadowEffect가 붙어 있는 상태에서
-            # unpolish/polish만 하면 자식 QLabel이 다시 그려지지 않고
-            # 카드 배경만 보이는 경우가 실측 확인됐다 — 자식까지 강제로
-            # 다시 그리게 한다.
+            # 자식 QLabel 색은 QFrame#HistoryDateRow[active="true"] QLabel
+            # 처럼 부모(row)의 active 속성에 걸린 자손 선택자로 정해진다.
+            # row만 unpolish/polish하면 Qt가 각 QLabel에 캐싱해 둔 스타일
+            # 매치 결과까지 자동으로 무효화해주지 않아서, 선택 상태를 여러
+            # 번 오가면 자식 글씨가 안 보이거나(흰 배경에 흰 글씨로 남는 등)
+            # 겹쳐 보이는 게 실측 확인됐다 — 자식도 직접 unpolish/polish로
+            # 스타일을 다시 계산시켜야 한다.
             for child in row.findChildren(QLabel):
+                child.style().unpolish(child)
+                child.style().polish(child)
                 child.update()
             row.update()
 

@@ -7,6 +7,8 @@ from .. import config
 
 # QSS의 url()은 백슬래시를 못 읽으므로 슬래시로 바꿔서 넣는다.
 _CHECKMARK_URL = str(config.checkmark_icon_path()).replace("\\", "/")
+_SPIN_UP_ARROW_URL = str(config.spin_arrow_icon_path("up")).replace("\\", "/")
+_SPIN_DOWN_ARROW_URL = str(config.spin_arrow_icon_path("down")).replace("\\", "/")
 
 COLORS = {
     "bg": "#F5F7FB",
@@ -344,6 +346,19 @@ QSpinBox::up-button, QSpinBox::down-button {{
     width: 18px;
     border: none;
     background-color: transparent;
+}}
+/* ::up-button/::down-button만 커스터마이징하면 Qt가 기본 화살표를 안
+   그려주므로, ::up-arrow/::down-arrow에 직접 삼각형 PNG를 지정해야
+   화살표가 보인다(체크박스 체크 표시와 동일한 이미지 방식). */
+QSpinBox::up-arrow {{
+    image: url({_SPIN_UP_ARROW_URL});
+    width: 10px;
+    height: 10px;
+}}
+QSpinBox::down-arrow {{
+    image: url({_SPIN_DOWN_ARROW_URL});
+    width: 10px;
+    height: 10px;
 }}
 QComboBox QAbstractItemView {{
     background-color: white;
