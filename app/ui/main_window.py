@@ -404,12 +404,24 @@ class MainWindow(QMainWindow):
         "정말 설치되고 있는 게 맞나" 확인할 방법이 없었다.
 
         [지금 설치]를 눌러도 아무 일 없이 배너/앱만 사라지고 실제로는
-        설치가 안 되는 문제가 실제로 보고된 적이 있는데, 이 함수는 Qt
-        시그널 슬롯이라 여기서 예외가 나면(방화벽/백신이 설치 파일
-        실행을 막는 경우 등) windowed 빌드는 콘솔이 없어 예외가 그냥
-        조용히 사라지고 아무 단서도 안 남는다 — 그래서 전체를
-        try/except로 감싸 update_check.log에 남긴다(사용자에게는 여전히
-        팝업을 띄우지 않는다는 원칙은 그대로 유지)."""
+        설치가 안 되는 문제가 실제로 보고됐고, 이번에 원인을 실측으로
+        확인했다: PyInstaller onefile 부트로더가 Windows Job Object로
+        프로세스를 관리하는데, 여기서 그냥 subprocess.Popen()으로 띄운
+        Setup.exe는 그 Job Object에 자식으로 딸려 들어간다 — 그 상태에서
+        우리 앱(부모)이 self.close()로 종료하면 Setup.exe까지 함께
+        강제 종료돼버린다. 순수 python.exe 스크립트로 직접 띄운
+        subprocess.Popen()은 이 문제가 재현되지 않고(Job Object가 없으니
+        당연함), 실제 배포된 exe(PowerShell로 띄우든 explorer.exe로
+        더블클릭하듯 띄우든 둘 다 동일하게 재현됨)에서만 나타나는 걸
+        확인해서 특정했다. CREATE_BREAKAWAY_FROM_JOB 플래그로 Setup.exe를
+        그 Job Object에서 명시적으로 떼어내야 우리가 종료된 뒤에도
+        살아남는다.
+
+        이 함수는 Qt 시그널 슬롯이라 여기서 예외가 나면(방화벽/백신이
+        설치 파일 실행을 막는 경우 등) windowed 빌드는 콘솔이 없어
+        예외가 그냥 조용히 사라지고 아무 단서도 안 남는다 — 그래서
+        전체를 try/except로 감싸 update_check.log에 남긴다(사용자에게는
+        여전히 팝업을 띄우지 않는다는 원칙은 그대로 유지)."""
         try:
             self._auto_sync_timer.stop()
 
@@ -419,6 +431,7 @@ class MainWindow(QMainWindow):
             subprocess.Popen(
                 [str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
                 close_fds=True,
+                creationflags=subprocess.CREATE_BREAKAWAY_FROM_JOB,
             )
         except Exception as e:
             update_check.log_update_event(
