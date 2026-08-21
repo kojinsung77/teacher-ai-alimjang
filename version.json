@@ -1,6 +1,6 @@
 {
-  "version": "1.2.5",
-  "notes": "자동 업데이트 설치 시 /VERYSILENT 대신 /SILENT를 사용해 설치 진행률 창이 보이도록 변경. 예전 테스트 설치 파일 정리.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.2.5/TeacherAlimjang_Setup_v1.2.5.exe",
-  "sha256": "8247448aa41b56b524601d61243793aaa41815311a3eaea7527ee8f640133c32"
+  "version": "1.3.1",
+  "notes": "스핀박스 화살표 확대, 일정 화면 스크롤 지원, 정기 알림 시각 변경(16:10) 및 알림 강화(작업표시줄 깜빡임·알림음·인앱 토스트 추가), 데모 모드 표시 배지, 즉시 업데이트 확인 버튼과 진단 로그, 버전+배포일 배지, 설치 진행률 표시(/SILENT) 등 UI 및 업데이트 시스템 개선. (예전에 실수로 배포됐던 v1.3.0보다 높은 버전 번호로, 그 버전이 설치된 컴퓨터도 정상적으로 이번 버전을 인식합니다.)",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.3.1/TeacherAlimjang_Setup_v1.3.1.exe",
+  "sha256": "fd3817b65a6b7739b59b2f6b7ffdc39efe7d04bfce9bf41a273b7960d5d0aa45"
 }
