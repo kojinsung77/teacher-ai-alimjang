@@ -1,0 +1,21 @@
+# 빌드 산출물 — PyInstaller/Inno Setup이 매번 새로 만들어내는 것들이라
+# 커밋할 필요가 없고, installer/output/*.exe는 100MB가 넘어 깃허브
+# 일반 커밋 용량 제한에도 걸린다. 배포는 깃허브 릴리스 첨부파일로만 한다.
+dist/
+build/
+installer/output/
+
+# Python 캐시
+__pycache__/
+*.pyc
+
+# 가상환경 (있다면)
+.venv/
+venv/
+
+# 로컬 앱 데이터/DB — 실제로는 %LOCALAPPDATA%\TeacherAlimjang\ 밑에 있어
+# 이 프로젝트 폴더 안에는 안 생기지만, 혹시 개발 중 임시로 여기 생길 걸
+# 대비해 이름 패턴을 미리 막아둔다.
+app_data/
+*.sqlite3
+*.sqlite3-*

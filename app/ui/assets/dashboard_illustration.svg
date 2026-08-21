@@ -1,0 +1,45 @@
+<svg width="360" height="260" viewBox="0 0 360 260" xmlns="http://www.w3.org/2000/svg">
+  <!-- 화분 -->
+  <g>
+    <rect x="40" y="170" width="70" height="55" rx="8" fill="#DDD6FE"/>
+    <rect x="48" y="178" width="54" height="40" rx="5" fill="#EDE9FE"/>
+    <path d="M75 170 C 75 140, 45 140, 45 115 C 70 115, 78 140, 75 170 Z" fill="#10B981"/>
+    <path d="M75 170 C 75 135, 105 132, 108 105 C 80 108, 72 138, 75 170 Z" fill="#34D399"/>
+  </g>
+
+  <!-- 달력 -->
+  <g>
+    <rect x="120" y="60" width="150" height="160" rx="16" fill="#FFFFFF" stroke="#E7E8F0" stroke-width="2"/>
+    <rect x="120" y="60" width="150" height="34" rx="16" fill="#4F46E5"/>
+    <rect x="120" y="78" width="150" height="16" fill="#4F46E5"/>
+    <rect x="145" y="48" width="8" height="26" rx="4" fill="#312E81"/>
+    <rect x="237" y="48" width="8" height="26" rx="4" fill="#312E81"/>
+    <g fill="#E7E8F0">
+      <rect x="136" y="106" width="16" height="16" rx="3"/>
+      <rect x="160" y="106" width="16" height="16" rx="3"/>
+      <rect x="184" y="106" width="16" height="16" rx="3"/>
+      <rect x="208" y="106" width="16" height="16" rx="3"/>
+      <rect x="232" y="106" width="16" height="16" rx="3"/>
+      <rect x="136" y="130" width="16" height="16" rx="3"/>
+      <rect x="160" y="130" width="16" height="16" rx="3"/>
+      <rect x="208" y="130" width="16" height="16" rx="3"/>
+      <rect x="232" y="130" width="16" height="16" rx="3"/>
+      <rect x="136" y="154" width="16" height="16" rx="3"/>
+      <rect x="160" y="154" width="16" height="16" rx="3"/>
+      <rect x="184" y="154" width="16" height="16" rx="3"/>
+      <rect x="232" y="154" width="16" height="16" rx="3"/>
+    </g>
+    <rect x="184" y="130" width="16" height="16" rx="3" fill="#4F46E5"/>
+    <circle cx="192" cy="138" r="13" fill="#10B981"/>
+    <path d="M186 138 l4 4 l8 -9" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="136" y="178" width="112" height="10" rx="5" fill="#F0F1F7"/>
+    <rect x="136" y="196" width="80" height="10" rx="5" fill="#F0F1F7"/>
+  </g>
+
+  <!-- 책 더미 -->
+  <g>
+    <rect x="270" y="196" width="70" height="16" rx="3" fill="#3B82F6"/>
+    <rect x="276" y="180" width="58" height="16" rx="3" fill="#F97316"/>
+    <rect x="270" y="164" width="66" height="16" rx="3" fill="#10B981"/>
+  </g>
+</svg>
