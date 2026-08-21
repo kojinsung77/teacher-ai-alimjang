@@ -14,15 +14,17 @@ APP_VERSION = "1.2.0"
 # [업데이트 확인]의 [다운로드 페이지 열기] 버튼이 여는 주소 — 사람이 직접
 # 파일을 받는 페이지다. 자동으로 다운로드·설치하지 않는 게 이 프로젝트
 # 원칙이라, 실제 설치 파일 자체는 여기서 받지 않는다.
-DOWNLOAD_PAGE_URL = "https://drive.google.com/drive/folders/1ZbcXl5IDJ9UF2gzGH5t6Sgl625GxM4YU?usp=drive_link"
+# 배포 채널을 구글 드라이브 수동 복사에서 깃허브(코드 저장소 + 릴리스
+# 첨부파일)로 옮기면서 함께 바꿨다 — releases/latest는 깃허브가 항상
+# "가장 최근 릴리스"로 자동 리다이렉트해주는 고정 주소라 버전이 올라가도
+# 이 URL 자체는 바꿀 필요가 없다.
+DOWNLOAD_PAGE_URL = "https://github.com/kojinsung77/teacher-ai-alimjang/releases/latest"
 
-# 최신 버전 정보(version.json)를 가져올 주소. 구글 드라이브 개별 파일
-# 공유 링크 형태 그대로 넣으면 app/core/update_check.py의
-# drive_share_link_to_direct()가 다이렉트 다운로드 URL로 알아서 바꿔서
-# 쓴다. version.json은 release.ps1이 매번 "같은 파일"에 덮어쓰므로(새
-# 리비전으로 저장, 파일 ID·공유 링크는 그대로 유지) 이 URL은 버전이
-# 올라가도 다시 바꿀 필요가 없다.
-UPDATE_CHECK_URL = "https://drive.google.com/file/d/1PeLDCLP0OlMQZLI0Vfy2DxuOsZZdInB5/view?usp=sharing"
+# 최신 버전 정보(version.json)를 가져올 주소. 저장소 루트의 version.json을
+# raw.githubusercontent.com으로 직접 가져온다 — 릴리스마다 release.ps1이
+# 이 파일을 커밋·푸시로 갱신하므로, 이 URL도 버전이 올라가도 바뀌지
+# 않는다(브랜치명은 기본 브랜치인 master 기준).
+UPDATE_CHECK_URL = "https://raw.githubusercontent.com/kojinsung77/teacher-ai-alimjang/master/version.json"
 
 # Windows 자동 시작(레지스트리 Run 키) 관련 상수. 값 이름은 keyring
 # 서비스명과 동일하게 APP_DIR_NAME을 재사용해 식별자를 하나로 통일한다.
@@ -57,6 +59,14 @@ def checkmark_icon_path() -> Path:
     PyInstaller onefile 빌드 시 _MEIPASS 기준 경로를 쓴다."""
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     return base / "app" / "ui" / "assets" / "checkmark.png"
+
+
+def spin_arrow_icon_path(direction: str) -> Path:
+    """QSpinBox 위/아래 화살표(회색 삼각형 PNG) 경로. direction은
+    "up" 또는 "down". icon_path()와 동일한 이유로 PyInstaller onefile
+    빌드 시 _MEIPASS 기준 경로를 쓴다."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / "app" / "ui" / "assets" / f"spin_{direction}_arrow.png"
 
 KEYRING_SERVICE = "TeacherAlimjang"
 KEYRING_USERNAME = "gemini_api_key"

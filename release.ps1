@@ -1,21 +1,45 @@
 ﻿# 교사업무 AI 알림장 — 배포 원스톱 스크립트.
 #
-# "release.ps1 1.2.0" 한 줄이면: 버전 문자열 갱신 -> build.ps1로 클린
-# 빌드 -> Setup.exe SHA256 계산 -> version.json 갱신(download_url은
-# 그대로 유지) -> 구글 드라이브 동기화 폴더로 복사까지 전부 끝난다.
+# "release.ps1 1.2.0 -Notes '이번 버전 변경 내용'" 한 줄이면: 버전 문자열
+# 갱신 -> build.ps1로 클린 빌드 -> Setup.exe SHA256 계산 -> version.json
+# 갱신(download_url을 이번 버전의 깃허브 릴리스 첨부파일 주소로 계산) ->
+# git tag -> gh release create로 설치 파일을 깃허브 릴리스에 첨부 ->
+# version.json을 git commit/push까지 전부 끝난다.
+#
+# 배포 채널을 구글 드라이브 수동 복사에서 깃허브(코드 저장소 + 릴리스
+# 첨부파일)로 옮기면서 마지막 단계를 통째로 바꿨다 — 예전에는 로컬
+# 드라이브 동기화 폴더에 파일을 복사만 해두고 실제 업로드는 Drive
+# 클라이언트가 알아서 하길 기다려야 했지만, 지금은 gh release create가
+# 끝나는 시점에 실제로 업로드가 완료된 것까지 보장된다.
 #
 # build.ps1과 분리한 이유: build.ps1은 "지금 소스로 그냥 한 번 빌드해보고
 # 싶다"는 개발 중 빠른 확인용으로 계속 남겨 두고(버전 번호를 안 건드림),
 # 실제 배포(버전 올리고 해시 계산해서 배포 채널까지 올리는 것)는 별도
 # 스크립트로 명확히 분리했다.
 #
+# -SkipPublish를 주면 로컬 빌드 + version.json 갱신까지만 하고 태그
+# 생성/gh release create/git push는 하지 않는다 — 특히 다른 학교
+# 선생님들도 자동 업데이트로 받게 되는 배포라, "실제로 공개 릴리스가
+# 나가기 직전에 한 번은 사람이 눈으로 확인하고 싶다"는 요청 때문에 넣은
+# 옵션이다. 확인 후 같은 버전으로 -SkipPublish 없이 다시 실행하면(빌드는
+# 이미 끝났어도 재빌드 자체는 멱등이라 문제없다) 이어서 배포까지 끝난다.
+#
 # 사용법: 프로젝트 루트에서 실행
-#   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0
+#   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "이번 버전에서 고친 내용"
+#   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "..." -SkipPublish
 
 param(
     [Parameter(Mandatory = $true)]
-    [string]$Version
+    [string]$Version,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Notes,
+
+    [switch]$SkipPublish
 )
+
+$GhOwner = "kojinsung77"
+$GhRepo = "teacher-ai-alimjang"
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
@@ -37,7 +61,7 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 }
 
 # ---------- 1) app/config.py의 APP_VERSION 갱신 ----------
-Write-Step "1/5  app/config.py APP_VERSION -> $Version"
+Write-Step "1/6  app/config.py APP_VERSION -> $Version"
 $configPath = Join-Path $root "app\config.py"
 $configContent = [System.IO.File]::ReadAllText($configPath)
 $newConfigContent = $configContent -replace 'APP_VERSION = "[^"]*"', "APP_VERSION = `"$Version`""
@@ -46,7 +70,7 @@ Write-Utf8NoBom $configPath $newConfigContent
 Write-Output "완료"
 
 # ---------- 2) installer/setup.iss의 MyAppVersion 갱신 ----------
-Write-Step "2/5  installer/setup.iss MyAppVersion -> $Version"
+Write-Step "2/6  installer/setup.iss MyAppVersion -> $Version"
 $issPath = Join-Path $root "installer\setup.iss"
 $issContent = [System.IO.File]::ReadAllText($issPath)
 $newIssContent = $issContent -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$Version`""
@@ -55,7 +79,7 @@ Write-Utf8NoBom $issPath $newIssContent
 Write-Output "완료"
 
 # ---------- 3) build.ps1로 클린 빌드 (PyInstaller + Inno Setup) ----------
-Write-Step "3/5  build.ps1 클린 빌드"
+Write-Step "3/6  build.ps1 클린 빌드"
 & (Join-Path $root "build.ps1")
 if ($LASTEXITCODE -ne 0) { throw "build.ps1 실패 (exit $LASTEXITCODE)" }
 
@@ -64,46 +88,51 @@ if (-not $setupPath) { throw "installer\output\*.exe 를 찾지 못했습니다.
 Write-Output "빌드된 설치 파일: $($setupPath.FullName)"
 
 # ---------- 4) SHA256 계산 + version.json 갱신 ----------
-Write-Step "4/5  SHA256 계산 및 version.json 갱신"
+Write-Step "4/6  SHA256 계산 및 version.json 갱신"
 $hash = (Get-FileHash $setupPath.FullName -Algorithm SHA256).Hash.ToLower()
 Write-Output "SHA256: $hash"
 
-python (Join-Path $root "scripts\bump_version_json.py") $Version $hash
+# 깃허브 릴리스 첨부파일의 다운로드 주소는 태그·파일명만 알면 gh release
+# create가 끝나기 전에도 미리 계산할 수 있다(깃허브의 고정된 URL 규칙).
+$downloadUrl = "https://github.com/$GhOwner/$GhRepo/releases/download/v$Version/$($setupPath.Name)"
+Write-Output "download_url: $downloadUrl"
+
+python (Join-Path $root "scripts\bump_version_json.py") $Version $hash $downloadUrl $Notes
 if ($LASTEXITCODE -ne 0) { throw "version.json 갱신 실패 (exit $LASTEXITCODE)" }
 
-# ---------- 5) 구글 드라이브 동기화 폴더로 복사 (있으면) ----------
-Write-Step "5/5  구글 드라이브 동기화 폴더로 복사"
-# 주의: 이 PC에는 구글 드라이브 계정이 두 개 마운트되어 있다(G: 개인
-# kojinsung1472@gmail.com, H: 업무 jinsko@jungang.hs.kr). app/config.py의
-# DOWNLOAD_PAGE_URL이 실제로 가리키는, 이미 공유 링크가 걸려 있는 폴더는
-# H: 쪽의 "쿨메신저 AI 알림장(since2026)"이다 — G: 쪽 폴더에 복사하면
-# 공유 링크와 무관한 엉뚱한 곳에 쌓이기만 하니 반드시 H:를 써야 한다.
-$driveFolder = "H:\내 드라이브\쿨메신저 AI 알림장(since2026)"
-if (Test-Path $driveFolder) {
-    # 오래된 버전 설치 파일이 계속 쌓이지 않도록, 새로 복사하는 파일을
-    # 제외한 기존 *.exe는 지운다.
-    Get-ChildItem (Join-Path $driveFolder "*.exe") -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -ne $setupPath.Name } |
-        ForEach-Object {
-            Write-Output "이전 버전 정리: $($_.Name)"
-            Remove-Item $_.FullName -Force
-        }
-
-    $destExe = Join-Path $driveFolder $setupPath.Name
-    Copy-Item $setupPath.FullName $destExe -Force
-    Copy-Item (Join-Path $root "version.json") $driveFolder -Force
-    Write-Output "복사 완료: $destExe"
-    Write-Output "복사 완료: $(Join-Path $driveFolder 'version.json')"
-    Write-Output "주의: 로컬 폴더에 복사만 했을 뿐, 실제로 구글 드라이브 서버까지 올라갔는지는"
-    Write-Output "      Drive 동기화 클라이언트가 알아서 처리한다 — drive.google.com에서 직접 확인할 것."
-} else {
-    Write-Output "건너뜀: 구글 드라이브 동기화 폴더($driveFolder)를 찾지 못했습니다."
-    Write-Output "        Setup.exe와 version.json을 직접 업로드해 주세요:"
-    Write-Output "        $($setupPath.FullName)"
-    Write-Output "        $(Join-Path $root 'version.json')"
+if ($SkipPublish) {
+    Write-Step "완료 (-SkipPublish로 실행됨 — 태그/릴리스/푸시는 건너뜀)"
+    Write-Output "버전: $Version"
+    Write-Output "SHA256: $hash"
+    Write-Output "설치 파일: $($setupPath.FullName)"
+    Write-Output ""
+    Write-Output "확인 후 실제로 공개 배포하려면 같은 버전으로 -SkipPublish 없이 다시 실행하세요:"
+    Write-Output "  powershell -ExecutionPolicy Bypass -File release.ps1 $Version -Notes `"$Notes`""
+    exit 0
 }
+
+# ---------- 5) git tag + gh release create (설치 파일 첨부) ----------
+Write-Step "5/6  git tag + 깃허브 릴리스 생성"
+$tag = "v$Version"
+git -C $root tag $tag
+if ($LASTEXITCODE -ne 0) { throw "git tag 실패 (이미 존재하는 태그인지 확인: $tag)" }
+git -C $root push origin $tag
+if ($LASTEXITCODE -ne 0) { throw "git push (태그) 실패" }
+
+gh release create $tag $setupPath.FullName --repo "$GhOwner/$GhRepo" --title $tag --notes $Notes
+if ($LASTEXITCODE -ne 0) { throw "gh release create 실패" }
+Write-Output "릴리스 생성 완료: https://github.com/$GhOwner/$GhRepo/releases/tag/$tag"
+
+# ---------- 6) version.json 커밋 + 푸시 ----------
+Write-Step "6/6  version.json 커밋 + 푸시"
+git -C $root add version.json
+git -C $root commit -m "release: v$Version"
+if ($LASTEXITCODE -ne 0) { throw "git commit 실패" }
+git -C $root push origin master
+if ($LASTEXITCODE -ne 0) { throw "git push (master) 실패" }
 
 Write-Step "완료"
 Write-Output "버전: $Version"
 Write-Output "SHA256: $hash"
 Write-Output "설치 파일: $($setupPath.FullName)"
+Write-Output "릴리스: https://github.com/$GhOwner/$GhRepo/releases/tag/$tag"
