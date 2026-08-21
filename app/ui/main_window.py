@@ -516,11 +516,31 @@ class MainWindow(QMainWindow):
                 self._show_reminder_notification(template.format(n=count))
 
     def _show_reminder_notification(self, message: str):
+        """정기 알림(13:20/16:10)을 여러 채널로 동시에 알린다. 트레이
+        풍선 하나만 믿으면 8초 뒤 사라지거나, Windows 알림 설정(방해
+        금지 모드 등)에 따라 아예 안 뜨는 경우까지 있어 놓치기 쉬웠다.
+
+        - 작업표시줄 아이콘 깜빡임(QApplication.alert): 창을 다시
+          클릭하기 전까지 계속 유지되므로, "아까 뭔가 왔었다"는 걸
+          나중에 봐도 알 수 있다 — Windows 알림 설정과 무관하게 항상
+          동작한다.
+        - 알림음(QApplication.beep): 청각으로도 알 수 있게.
+        - 창이 트레이로 숨겨지지 않고 열려 있으면(self.isVisible()) 인앱
+          토스트도 같이 띄운다 — 트레이 풍선은 화면 구석에 작게만
+          나타나 놓치기 쉬운데, 토스트는 창 안에서 더 눈에 띈다.
+        - 트레이 풍선(창이 숨겨져 있을 때를 대비한 채널)은 그대로 유지하되
+          표시 시간을 8초 -> 12초로 늘린다."""
+        QApplication.beep()
+        QApplication.alert(self)
+
+        if self.isVisible():
+            self.toast.show_message(message, duration_ms=6000)
+
         if not getattr(self, "tray_icon", None):
             return
         self._last_tray_message_was_reminder = True
         self.tray_icon.showMessage(
-            config.APP_NAME, message, QSystemTrayIcon.Information, 8000
+            config.APP_NAME, message, QSystemTrayIcon.Information, 12000
         )
 
     def _on_tray_message_clicked(self):
