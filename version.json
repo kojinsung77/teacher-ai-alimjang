@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
-  "notes": "테스트 버전 업데이트",
-  "download_url": "https://drive.google.com/file/d/1azw0Yifx1m1oRfzl4IK-oU0a8COqTlcn/view?usp=drive_link",
-  "sha256": "6a4bf0f37083a2361bf0c72af7f1c706844c9d65b2ff687f767a6d33f552e5e2"
+  "version": "1.2.1",
+  "notes": "QSpinBox 화살표 표시 안 되던 문제, [오늘 알림장 만들기] 결과창에서 업무 많을 때 OK 버튼 화면 밖으로 밀리던 문제, 지난 알림장 날짜 선택 시 글씨 사라지던 문제, Gemini AI 설정 제목 중복 표시 문제를 수정했습니다. 배포 채널이 구글 드라이브에서 깃허브로 바뀌었습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.2.1/TeacherAlimjang_Setup_v1.2.1.exe",
+  "sha256": "64ae38440845b1f8a6cb3e860dc3fc056fe6afe8a73b5ac635637c6983991fa2"
 }
