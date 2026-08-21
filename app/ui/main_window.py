@@ -392,12 +392,16 @@ class MainWindow(QMainWindow):
             update_check.log_update_event("[지금 설치] 클릭 — 이미 진행 중인 다운로드를 기다림")
 
     def _run_silent_install(self, installer_path):
-        """미리 받아 SHA256까지 검증해 둔 설치 파일을 조용한 옵션으로
-        실행하고, 우리 앱은 곧바로 완전히 종료한다 — 설치 프로그램이
-        exe 파일을 덮어써야 하므로 그 전에 파일 잠금을 풀어야 한다.
-        DB는 요청마다 새로 연결하고 바로 닫는 구조라(app/db.py의
-        get_conn()) 별도로 닫아야 할 지속 연결이 없다 — 자동 확인
-        타이머만 멈추면 정리는 끝이다.
+        """미리 받아 SHA256까지 검증해 둔 설치 파일을 실행하고, 우리 앱은
+        곧바로 완전히 종료한다 — 설치 프로그램이 exe 파일을 덮어써야
+        하므로 그 전에 파일 잠금을 풀어야 한다. DB는 요청마다 새로
+        연결하고 바로 닫는 구조라(app/db.py의 get_conn()) 별도로 닫아야
+        할 지속 연결이 없다 — 자동 확인 타이머만 멈추면 정리는 끝이다.
+
+        /VERYSILENT가 아니라 /SILENT를 쓴다 — 마법사 화면(사용자가 눌러야
+        하는 단계)은 여전히 안 뜨지만, 진행률 표시줄은 보여준다. 완전히
+        조용하면(/VERYSILENT) 클릭 후 몇 초간 화면에 아무 반응이 없어
+        "정말 설치되고 있는 게 맞나" 확인할 방법이 없었다.
 
         [지금 설치]를 눌러도 아무 일 없이 배너/앱만 사라지고 실제로는
         설치가 안 되는 문제가 실제로 보고된 적이 있는데, 이 함수는 Qt
@@ -413,22 +417,24 @@ class MainWindow(QMainWindow):
             single_instance.release_install_mutex()
 
             subprocess.Popen(
-                [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                [str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
                 close_fds=True,
             )
         except Exception as e:
             update_check.log_update_event(
-                f"조용한 설치 실행 실패: {type(e).__name__}: {e} (경로: {installer_path})"
+                f"설치 실행 실패: {type(e).__name__}: {e} (경로: {installer_path})"
             )
             # 설치 파일이 그새 지워졌다거나, 실행 자체가 막힌 경우 —
             # 조용히 포기. 팝업 없음, 배너는 [지금 설치]를 다시 누를 수
             # 있는 상태로 남는다(앱을 안 닫았으므로).
             return
 
-        # setup.iss [Run]에서 skipifsilent를 빼 뒀으므로, 조용한 설치가
-        # 끝나면 새 exe가 자동으로 다시 실행된다 — 여기서는 우리 자신만
-        # 완전히 종료하면 된다(installer/setup.iss의 AppMutex가 우리
-        # exe를 "실행 중"으로 오인하지 않도록 뮤텍스는 위에서 이미 풀었다).
+        # setup.iss [Run]에서 skipifsilent를 빼 뒀으므로, 설치가 끝나면
+        # 새 exe가 자동으로 다시 실행된다 — 여기서는 우리 자신만 완전히
+        # 종료하면 된다(installer/setup.iss의 AppMutex가 우리 exe를
+        # "실행 중"으로 오인하지 않도록 뮤텍스는 위에서 이미 풀었다).
+        # WizardSilent()는 /SILENT·/VERYSILENT 둘 다에서 True이므로 이
+        # 자동 재실행 로직 자체는 그대로 동작한다.
         self._force_quit = True
         self.close()
 
