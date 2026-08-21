@@ -64,8 +64,12 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
 Write-Step "1/6  app/config.py APP_VERSION -> $Version"
 $configPath = Join-Path $root "app\config.py"
 $configContent = [System.IO.File]::ReadAllText($configPath)
+# "바뀐 내용이 있는지"(-eq 비교)가 아니라 "패턴 자체가 있었는지"(-match)로
+# 검사해야 한다 — -SkipPublish로 미리 버전을 올려 둔 뒤 같은 버전으로
+# 다시 실행하면(오늘 이 케이스처럼) 치환 전후 내용이 똑같아서 -eq 비교로는
+# "못 찾음"으로 잘못 판단해버린다.
+if ($configContent -notmatch 'APP_VERSION = "[^"]*"') { throw "app/config.py에서 APP_VERSION 줄을 찾지 못했습니다." }
 $newConfigContent = $configContent -replace 'APP_VERSION = "[^"]*"', "APP_VERSION = `"$Version`""
-if ($newConfigContent -eq $configContent) { throw "app/config.py에서 APP_VERSION 줄을 찾지 못했습니다." }
 Write-Utf8NoBom $configPath $newConfigContent
 Write-Output "완료"
 
@@ -73,8 +77,8 @@ Write-Output "완료"
 Write-Step "2/6  installer/setup.iss MyAppVersion -> $Version"
 $issPath = Join-Path $root "installer\setup.iss"
 $issContent = [System.IO.File]::ReadAllText($issPath)
+if ($issContent -notmatch '#define MyAppVersion "[^"]*"') { throw "installer/setup.iss에서 MyAppVersion 줄을 찾지 못했습니다." }
 $newIssContent = $issContent -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$Version`""
-if ($newIssContent -eq $issContent) { throw "installer/setup.iss에서 MyAppVersion 줄을 찾지 못했습니다." }
 Write-Utf8NoBom $issPath $newIssContent
 Write-Output "완료"
 
