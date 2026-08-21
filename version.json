@@ -2,5 +2,5 @@
   "version": "1.3.0",
   "notes": "QSpinBox 화살표 크기 확대, 일정 화면 업무 많을 때 스크롤 지원, 정기 알림 시각 변경(14:10→16:10) 및 데모 모드 표시 배지 추가, 설정 화면에 즉시 업데이트 확인 버튼과 실패 진단 로그(update_check.log) 추가.",
   "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.3.0/TeacherAlimjang_Setup_v1.3.0.exe",
-  "sha256": "08fd919822bde630d9e53cc4d669ab04be0930e994d2dff69a50953b4312081d"
+  "sha256": "7e6b2690cf9293a12efeadf3c0a8defce888f15183201c8946f155fcf29245f6"
 }
