@@ -1,6 +1,6 @@
 {
-  "version": "1.2.4",
-  "notes": "사이드바 버전 배지에서 클릭(건의사항 메일 연동) 제거, 대신 버전과 배포일을 함께 표시(v1.2.4 · 오늘 날짜). 건의사항은 기존 사이드바 하단 버튼으로 그대로 보낼 수 있습니다. [지금 설치] 클릭 시 드물게 설치 없이 배너만 사라지는 문제를 조사하며 진단 로그를 추가했습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.2.4/TeacherAlimjang_Setup_v1.2.4.exe",
-  "sha256": "3e2d617e51cc87bb5721c2617e508854449c584a0d59f43daae5ccdc67b6da6a"
+  "version": "1.2.5",
+  "notes": "자동 업데이트 설치 시 /VERYSILENT 대신 /SILENT를 사용해 설치 진행률 창이 보이도록 변경. 예전 테스트 설치 파일 정리.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.2.5/TeacherAlimjang_Setup_v1.2.5.exe",
+  "sha256": "8247448aa41b56b524601d61243793aaa41815311a3eaea7527ee8f640133c32"
 }
