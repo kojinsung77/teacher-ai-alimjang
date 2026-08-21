@@ -17,6 +17,7 @@ import re
 import shutil
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 from .. import config, db
@@ -68,13 +69,30 @@ def is_newer(remote_version: str, local_version: str) -> bool:
     return _parse_version(remote_version) > _parse_version(local_version)
 
 
+def _log_update_check_failure(reason: str):
+    """업데이트 확인 실패 이유를 update_check.log에 한 줄 남긴다. 사용자
+    화면엔 아무것도 안 띄우는 조용한 실패 원칙은 그대로 유지하되(팝업
+    없음), 나중에 "왜 업데이트 배너가 안 떴는지" 진단할 방법이 전혀
+    없었던 문제를 해결하기 위한 것 — 로그 남기기 자체가 실패해도(디스크
+    꽉 참 등) 절대 앱을 죽이면 안 되므로 여기서도 예외를 전부 삼킨다."""
+    try:
+        log_path = config.app_data_dir() / "update_check.log"
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] {reason}\n")
+    except Exception:
+        pass
+
+
 def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
     """UPDATE_CHECK_URL에서 version.json을 가져와 dict로 반환한다.
     URL이 비어 있거나, 네트워크 오류·타임아웃·JSON 파싱 실패 등 무슨
     이유로든 실패하면 조용히 None을 반환한다 — 호출부(앱 시작 경로)가
-    이 실패로 절대 죽지 않아야 하기 때문이다."""
+    이 실패로 절대 죽지 않아야 하기 때문이다. 실패 이유는 화면에는 안
+    띄우고 update_check.log에만 남긴다(진단용)."""
     url = config.UPDATE_CHECK_URL
     if not url:
+        _log_update_check_failure("UPDATE_CHECK_URL이 비어 있음")
         return None
     try:
         direct_url = drive_share_link_to_direct(url)
@@ -82,9 +100,11 @@ def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
             raw = resp.read().decode("utf-8")
         data = json.loads(raw)
         if not isinstance(data, dict) or "version" not in data:
+            _log_update_check_failure(f"version.json 형식이 이상함: {raw[:200]!r}")
             return None
         return data
-    except Exception:
+    except Exception as e:
+        _log_update_check_failure(f"{type(e).__name__}: {e}")
         return None
 
 

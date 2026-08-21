@@ -197,6 +197,15 @@ QLabel#UpdateBannerFallback {{
     color: {COLORS['text_secondary']};
     font-size: 11px;
 }}
+QLabel#DemoModeBadge {{
+    background-color: {COLORS['stat_orange_bg']};
+    color: {COLORS['amber']};
+    border: 1px solid {COLORS['stat_orange_border']};
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 600;
+    font-size: 12px;
+}}
 
 /* ---------- 설정 화면 카드 (일반/Gemini AI/메신저/개인정보 마스킹) ---------- */
 QFrame#SettingsCard {{
@@ -343,7 +352,7 @@ QComboBox::drop-down {{
     width: 28px;
 }}
 QSpinBox::up-button, QSpinBox::down-button {{
-    width: 18px;
+    width: 24px;
     border: none;
     background-color: transparent;
 }}
@@ -352,13 +361,13 @@ QSpinBox::up-button, QSpinBox::down-button {{
    화살표가 보인다(체크박스 체크 표시와 동일한 이미지 방식). */
 QSpinBox::up-arrow {{
     image: url({_SPIN_UP_ARROW_URL});
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
 }}
 QSpinBox::down-arrow {{
     image: url({_SPIN_DOWN_ARROW_URL});
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
 }}
 QComboBox QAbstractItemView {{
     background-color: white;

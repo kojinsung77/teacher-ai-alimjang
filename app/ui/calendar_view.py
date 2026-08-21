@@ -8,7 +8,8 @@
 from PySide6.QtCore import QDate
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCalendarWidget
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCalendarWidget,
+    QScrollArea
 )
 
 from ..core import stats
@@ -68,10 +69,19 @@ class CalendarView(QWidget):
         self.panel_date_label.setObjectName("SectionTitle")
         panel_layout.addWidget(self.panel_date_label)
 
-        self.panel_list_layout = QVBoxLayout()
+        # 날짜 제목은 스크롤 밖 상단에 고정하고, 업무 카드 목록만
+        # QScrollArea로 감싼다 — 다른 화면들과 동일한 패턴(예:
+        # dashboard_view.py의 _build_ui()). 이렇게 안 하면 업무가 많은
+        # 날짜를 선택했을 때 목록이 패널 밖으로 넘쳐서 잘린다.
+        panel_scroll = QScrollArea()
+        panel_scroll.setWidgetResizable(True)
+        panel_scroll.setFrameShape(QFrame.NoFrame)
+        panel_list_container = QWidget()
+        self.panel_list_layout = QVBoxLayout(panel_list_container)
+        self.panel_list_layout.setContentsMargins(0, 0, 0, 0)
         self.panel_list_layout.setSpacing(8)
-        panel_layout.addLayout(self.panel_list_layout)
-        panel_layout.addStretch(1)
+        panel_scroll.setWidget(panel_list_container)
+        panel_layout.addWidget(panel_scroll, 1)
 
         content_row.addWidget(panel, 1)
         root.addLayout(content_row)
@@ -126,6 +136,7 @@ class CalendarView(QWidget):
             empty = QLabel("이 날짜에 마감인 업무가 없습니다.")
             empty.setObjectName("Muted")
             self.panel_list_layout.addWidget(empty)
+            self.panel_list_layout.addStretch(1)
             return
 
         for t in tasks:
@@ -150,3 +161,5 @@ class CalendarView(QWidget):
             v.addWidget(meta)
 
             self.panel_list_layout.addWidget(row)
+
+        self.panel_list_layout.addStretch(1)

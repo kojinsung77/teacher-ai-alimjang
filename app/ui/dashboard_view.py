@@ -67,6 +67,15 @@ class DashboardView(QWidget):
         root.setContentsMargins(44, 36, 44, 36)
         root.setSpacing(26)
 
+        # 데모 모드가 켜져 있으면 상단에 항상 작게 표시한다 — 데모 모드일
+        # 땐 정기 알림(13:20/16:10)이 조용히 안 울리는데(main_window.py의
+        # _check_daily_reminders), 이 표시가 없으면 선생님이 데모 모드가
+        # 켜진 줄 모른 채 "왜 알림이 안 뜨지"라고 헷갈릴 수 있다.
+        self.demo_mode_badge = QLabel("🧪 데모 모드 사용 중 — 설정에서 끌 수 있습니다")
+        self.demo_mode_badge.setObjectName("DemoModeBadge")
+        self.demo_mode_badge.hide()
+        root.addWidget(self.demo_mode_badge)
+
         self.update_banner = self._build_update_banner()
         self.update_banner.hide()
         root.addWidget(self.update_banner)
@@ -293,6 +302,8 @@ class DashboardView(QWidget):
         # 설정은 항상 빈 값이라 개인화 인사말이 죽은 코드였다 — 정리함.
         greeting = "안녕하세요, <span style=\"color:#4F76F5\">선생님!</span> 👋"
         self.greeting_label.setText(greeting)
+
+        self.demo_mode_badge.setVisible(self.demo_mode)
 
         values = stats.dashboard_stats()
         self.stat_value_labels["overdue"].setText(str(values["overdue"]))

@@ -101,7 +101,7 @@ _NAV_ITEMS = [
 # (하루 중 시각 "HH:MM", 알림 문구 — {n}은 미완료 업무 건수로 채워짐)
 _DAILY_REMINDER_TIMES = [
     ("13:20", "점심시간 끝나기 전에 확인해보세요 — 오늘 처리할 업무 {n}건"),
-    ("14:10", "퇴근 전에 마지막으로 확인해보세요 — 오늘 처리할 업무 {n}건"),
+    ("16:10", "퇴근 전에 마지막으로 확인해보세요 — 오늘 처리할 업무 {n}건"),
 ]
 
 
@@ -219,6 +219,7 @@ class MainWindow(QMainWindow):
 
         self.settings_view = SettingsPageView()
         self.settings_view.settingsChanged.connect(self._refresh_demo_mode)
+        self.settings_view.updateFound.connect(self._on_update_check_result)
         self._add_page("settings", self.settings_view)
 
         content_layout.addWidget(self.stack)
@@ -239,7 +240,7 @@ class MainWindow(QMainWindow):
         self._date_watch_timer.timeout.connect(self._check_date_rollover)
         self._date_watch_timer.start(5 * 60 * 1000)  # 5분마다 확인
 
-        # ---- 하루 두 번(13:20/14:10) 정기 알림 ----
+        # ---- 하루 두 번(13:20/16:10) 정기 알림 ----
         # "오늘 이미 보낸 시각"을 담아 두는 집합 — 자정에 _check_date_rollover가
         # 비워 준다(날짜가 바뀔 때만 리셋해야 다음날 다시 뜬다).
         self._reminder_sent_today = set()
@@ -455,7 +456,7 @@ class MainWindow(QMainWindow):
             self.switch_page(self.current_page_key)
 
     def _check_daily_reminders(self):
-        """1분마다 불려서 지금 시각이 13:20/14:10인지 확인한다. 데모
+        """1분마다 불려서 지금 시각이 13:20/16:10인지 확인한다. 데모
         모드에서는 실제 업무가 아니라 가짜 예시라 알림을 안 울린다.
         미완료 업무가 0건이면 그 시각엔 아예 안 띄운다 — 그래도 "오늘
         이 시각은 처리했다"는 표시는 남겨서, 잠깐 뒤에 새 업무가

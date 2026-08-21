@@ -364,6 +364,13 @@ class GeneralSettingsDialog(QDialog, _SettingsFormMixin):
     트레이·창 닫기 동작만 다룬다 (Gemini AI 관련 항목은 별도로
     AISettingsDialog가 맡는다)."""
 
+    # 수동 확인으로 새 버전을 찾았을 때 — SettingsPageView를 거쳐
+    # MainWindow까지 올려보내서, 자동 확인 때와 똑같이 대시보드에 실제
+    # 배너를 띄우고 백그라운드 다운로드까지 시작하게 한다(단순히 여기서
+    # 안내 문구만 보여주고 끝나면 [지금 설치]로 이어지는 실제 흐름을
+    # 탈 수 없다).
+    updateFound = Signal(dict)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("일반 설정")
@@ -387,7 +394,7 @@ class GeneralSettingsDialog(QDialog, _SettingsFormMixin):
         version_label.setObjectName("Muted")
         update_row.addWidget(version_label)
         update_row.addStretch(1)
-        update_btn = QPushButton("업데이트 확인")
+        update_btn = QPushButton("지금 업데이트 확인")
         update_btn.setObjectName("SecondaryButton")
         update_btn.setCursor(Qt.PointingHandCursor)
         update_btn.clicked.connect(self.on_check_update)
@@ -424,10 +431,11 @@ class GeneralSettingsDialog(QDialog, _SettingsFormMixin):
             return
         if update_check.is_newer(info["version"], config.APP_VERSION):
             notes = info.get("notes", "")
-            text = f"새 버전 v{info['version']}이 있습니다."
+            text = f"새 버전 v{info['version']}이 있습니다.\n'오늘' 화면에 안내 배너가 뜹니다."
             if notes:
                 text += f"\n{notes}"
             QMessageBox.information(self, "업데이트 확인", text)
+            self.updateFound.emit(info)
         else:
             QMessageBox.information(self, "업데이트 확인", "이미 최신 버전을 사용하고 있습니다.")
 
@@ -499,6 +507,7 @@ class SettingsPageView(QWidget, _SettingsFormMixin):
     동일한 패턴."""
 
     settingsChanged = Signal()  # demo_mode 등 다른 화면이 참고하는 값이 바뀌었을 수 있음
+    updateFound = Signal(dict)  # GeneralSettingsDialog의 수동 확인 결과를 MainWindow까지 전달
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -556,7 +565,9 @@ class SettingsPageView(QWidget, _SettingsFormMixin):
     # ---------- 액션 ----------
 
     def on_open_general(self):
-        GeneralSettingsDialog(self).exec()
+        dlg = GeneralSettingsDialog(self)
+        dlg.updateFound.connect(self.updateFound)
+        dlg.exec()
         self.refresh()
 
     def on_open_gemini(self):
