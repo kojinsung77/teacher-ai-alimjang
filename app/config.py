@@ -9,7 +9,7 @@ APP_NAME = "교사업무 AI 알림장"
 APP_DIR_NAME = "TeacherAlimjang"
 
 # 설치 프로그램(installer/setup.iss의 MyAppVersion)과 항상 맞춰서 올린다.
-APP_VERSION = "1.2.1"
+APP_VERSION = "1.2.2"
 
 # [업데이트 확인]의 [다운로드 페이지 열기] 버튼이 여는 주소 — 사람이 직접
 # 파일을 받는 페이지다. 자동으로 다운로드·설치하지 않는 게 이 프로젝트
