@@ -69,12 +69,16 @@ def is_newer(remote_version: str, local_version: str) -> bool:
     return _parse_version(remote_version) > _parse_version(local_version)
 
 
-def _log_update_check_failure(reason: str):
-    """업데이트 확인 실패 이유를 update_check.log에 한 줄 남긴다. 사용자
-    화면엔 아무것도 안 띄우는 조용한 실패 원칙은 그대로 유지하되(팝업
-    없음), 나중에 "왜 업데이트 배너가 안 떴는지" 진단할 방법이 전혀
-    없었던 문제를 해결하기 위한 것 — 로그 남기기 자체가 실패해도(디스크
-    꽉 참 등) 절대 앱을 죽이면 안 되므로 여기서도 예외를 전부 삼킨다."""
+def log_update_event(reason: str):
+    """업데이트 확인/다운로드/설치 흐름에서 생긴 일을 update_check.log에
+    한 줄 남긴다(이 함수 자체 이름은 "확인" 실패용으로 시작했지만,
+    main_window.py의 조용한 설치 실행 단계에서도 그대로 재사용한다 —
+    둘 다 "사용자 화면엔 안 띄우고 로그만 남기는" 같은 원칙이라 로그
+    파일을 굳이 나눌 이유가 없다). 사용자 화면엔 아무것도 안 띄우는
+    조용한 실패 원칙은 그대로 유지하되(팝업 없음), 나중에 "왜 안 됐는지"
+    진단할 방법이 전혀 없었던 문제를 해결하기 위한 것 — 로그 남기기
+    자체가 실패해도(디스크 꽉 참 등) 절대 앱을 죽이면 안 되므로 여기서도
+    예외를 전부 삼킨다."""
     try:
         log_path = config.app_data_dir() / "update_check.log"
         timestamp = datetime.now().isoformat(timespec="seconds")
@@ -92,7 +96,7 @@ def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
     띄우고 update_check.log에만 남긴다(진단용)."""
     url = config.UPDATE_CHECK_URL
     if not url:
-        _log_update_check_failure("UPDATE_CHECK_URL이 비어 있음")
+        log_update_event("UPDATE_CHECK_URL이 비어 있음")
         return None
     try:
         direct_url = drive_share_link_to_direct(url)
@@ -100,11 +104,11 @@ def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
             raw = resp.read().decode("utf-8")
         data = json.loads(raw)
         if not isinstance(data, dict) or "version" not in data:
-            _log_update_check_failure(f"version.json 형식이 이상함: {raw[:200]!r}")
+            log_update_event(f"version.json 형식이 이상함: {raw[:200]!r}")
             return None
         return data
     except Exception as e:
-        _log_update_check_failure(f"{type(e).__name__}: {e}")
+        log_update_event(f"{type(e).__name__}: {e}")
         return None
 
 

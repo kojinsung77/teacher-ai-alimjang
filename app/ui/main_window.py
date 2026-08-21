@@ -153,15 +153,13 @@ class MainWindow(QMainWindow):
         brand_row.addLayout(brand_text, 1)
         side_layout.addLayout(brand_row)
 
-        # 현재 실행 중인 버전을 눈에 거슬리지 않는 작은 배지로 보여주고,
-        # 누르면 바로 건의사항 메일 작성창이 열리게 해서 선생님이 문제를
-        # 발견하면 바로 보낼 수 있게 한다. config.APP_VERSION을 그대로
-        # 읽으므로 다음 버전이 올라가도 여기는 따로 안 고쳐도 된다.
-        test_badge = QPushButton(f"v{config.APP_VERSION}")
+        # 현재 실행 중인 버전과 배포일을 눈에 거슬리지 않는 작은 배지로
+        # 보여준다. 클릭 동작은 없다 — 건의사항은 사이드바 하단의
+        # 별도 [건의사항 보내기] 버튼(feedback_btn)이 이미 맡고 있다.
+        # config.APP_VERSION/APP_RELEASE_DATE를 그대로 읽으므로 다음
+        # 버전이 올라가도 여기는 따로 안 고쳐도 된다.
+        test_badge = QLabel(f"v{config.APP_VERSION} · {config.APP_RELEASE_DATE}")
         test_badge.setObjectName("TestBadge")
-        test_badge.setCursor(Qt.PointingHandCursor)
-        test_badge.setToolTip("눌러서 건의사항을 보내주세요.")
-        test_badge.clicked.connect(lambda: webbrowser.open(_build_feedback_url()))
         side_layout.addWidget(test_badge, 0, Qt.AlignLeft)
 
         side_layout.addSpacing(20)
@@ -348,16 +346,33 @@ class MainWindow(QMainWindow):
         self.dashboard_view.set_update_waiting(False)
         if path is not None:
             self._run_silent_install(path)
-        # path가 None이면(해시 불일치·네트워크 오류 등) 조용히 원래 배너
-        # 상태로 돌아간다 — 에러 팝업 없음, [나중에]로 넘어간 것과
-        # 동일하게 취급(사용자는 대체 링크로 수동 설치 가능).
+        else:
+            # 해시 불일치·네트워크 오류 등 — 조용히 원래 배너 상태로
+            # 돌아간다(에러 팝업 없음, [나중에]로 넘어간 것과 동일하게
+            # 취급, 사용자는 대체 링크로 수동 설치 가능). 왜 실패했는지는
+            # download_and_verify_update() 내부에서 이미 파일을 지우고
+            # 조용히 None만 돌려주므로 여기서 원인까지는 알 수 없지만,
+            # 적어도 "이 시점에 다운로드가 실패했다"는 사실 자체는 남긴다.
+            update_check.log_update_event(
+                "[지금 설치] 대기 중 다운로드 실패 — 배너를 원래 상태로 되돌림"
+            )
 
     def _on_install_requested(self):
         """대시보드 배너의 [지금 설치] 클릭. 이미 검증까지 끝난 파일이
         준비돼 있으면 곧바로 설치하고, 아직이면(다운로드 중이거나 이전
         시도가 실패해서 대기 중인 파일이 없으면) 대기 상태를 보여주고
-        완료되는 대로 자동으로 이어서 설치한다."""
+        완료되는 대로 자동으로 이어서 설치한다.
+
+        클릭했는데 아무 설치도 안 되고 배너/앱만 조용히 사라지는 문제가
+        실제로 보고된 적이 있다 — 재현은 못 했지만(직접 subprocess.Popen
+        호출은 정상 동작 확인됨), 가장 유력한 원인은 클릭 시점에
+        _pending_update_info가 가리키는 버전이 그 사이 서버에서
+        삭제/교체돼(예: 릴리스를 다시 올리는 도중이었다거나) 다운로드가
+        조용히 실패하는 경우로 추정된다. 그래서 각 분기가 실제로 어느
+        길로 갔는지 로그로 남겨서, 다음에 재발하면 update_check.log만
+        봐도 바로 원인을 알 수 있게 한다."""
         if self._verified_installer_path is not None and self._verified_installer_path.exists():
+            update_check.log_update_event("[지금 설치] 클릭 — 이미 검증된 파일로 즉시 설치")
             self._run_silent_install(self._verified_installer_path)
             return
 
@@ -365,7 +380,16 @@ class MainWindow(QMainWindow):
         self.dashboard_view.set_update_waiting(True)
         if self._update_download_thread is None or not self._update_download_thread.isRunning():
             if self._pending_update_info is not None:
+                update_check.log_update_event(
+                    f"[지금 설치] 클릭 — 다운로드 대기 상태로 전환, 버전={self._pending_update_info.get('version')}"
+                )
                 self._start_update_download(self._pending_update_info)
+            else:
+                update_check.log_update_event(
+                    "[지금 설치] 클릭 — _pending_update_info가 없어 다운로드를 시작할 수 없음"
+                )
+        else:
+            update_check.log_update_event("[지금 설치] 클릭 — 이미 진행 중인 다운로드를 기다림")
 
     def _run_silent_install(self, installer_path):
         """미리 받아 SHA256까지 검증해 둔 설치 파일을 조용한 옵션으로
@@ -373,20 +397,32 @@ class MainWindow(QMainWindow):
         exe 파일을 덮어써야 하므로 그 전에 파일 잠금을 풀어야 한다.
         DB는 요청마다 새로 연결하고 바로 닫는 구조라(app/db.py의
         get_conn()) 별도로 닫아야 할 지속 연결이 없다 — 자동 확인
-        타이머만 멈추면 정리는 끝이다."""
-        self._auto_sync_timer.stop()
+        타이머만 멈추면 정리는 끝이다.
 
-        from ..core import single_instance
-        single_instance.release_install_mutex()
-
+        [지금 설치]를 눌러도 아무 일 없이 배너/앱만 사라지고 실제로는
+        설치가 안 되는 문제가 실제로 보고된 적이 있는데, 이 함수는 Qt
+        시그널 슬롯이라 여기서 예외가 나면(방화벽/백신이 설치 파일
+        실행을 막는 경우 등) windowed 빌드는 콘솔이 없어 예외가 그냥
+        조용히 사라지고 아무 단서도 안 남는다 — 그래서 전체를
+        try/except로 감싸 update_check.log에 남긴다(사용자에게는 여전히
+        팝업을 띄우지 않는다는 원칙은 그대로 유지)."""
         try:
+            self._auto_sync_timer.stop()
+
+            from ..core import single_instance
+            single_instance.release_install_mutex()
+
             subprocess.Popen(
                 [str(installer_path), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
                 close_fds=True,
             )
-        except OSError:
-            # 설치 파일이 그새 지워졌다거나 하는 경우 — 조용히 포기.
-            # 팝업 없음, 배너는 [지금 설치]를 다시 누를 수 있는 상태로 남는다.
+        except Exception as e:
+            update_check.log_update_event(
+                f"조용한 설치 실행 실패: {type(e).__name__}: {e} (경로: {installer_path})"
+            )
+            # 설치 파일이 그새 지워졌다거나, 실행 자체가 막힌 경우 —
+            # 조용히 포기. 팝업 없음, 배너는 [지금 설치]를 다시 누를 수
+            # 있는 상태로 남는다(앱을 안 닫았으므로).
             return
 
         # setup.iss [Run]에서 skipifsilent를 빼 뒀으므로, 조용한 설치가

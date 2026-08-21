@@ -84,7 +84,7 @@ QPushButton {{
     color: {COLORS['sidebar_subtext']};
     font-size: 11px;
 }}
-QPushButton#TestBadge {{
+QLabel#TestBadge {{
     background-color: rgba(195, 139, 27, 0.22);
     color: #F0C36D;
     border: 1px solid rgba(195, 139, 27, 0.45);
@@ -93,9 +93,6 @@ QPushButton#TestBadge {{
     font-size: 11px;
     font-weight: 700;
     margin-top: 6px;
-}}
-QPushButton#TestBadge:hover {{
-    background-color: rgba(195, 139, 27, 0.34);
 }}
 QPushButton#SidebarFeedbackButton {{
     background-color: transparent;

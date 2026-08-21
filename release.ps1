@@ -60,8 +60,8 @@ if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "버전 형식이 이상합니다(예: 1.2.0 처럼 숫자.숫자.숫자여야 함): $Version"
 }
 
-# ---------- 1) app/config.py의 APP_VERSION 갱신 ----------
-Write-Step "1/6  app/config.py APP_VERSION -> $Version"
+# ---------- 1) app/config.py의 APP_VERSION/APP_RELEASE_DATE 갱신 ----------
+Write-Step "1/6  app/config.py APP_VERSION -> $Version, APP_RELEASE_DATE -> 오늘"
 $configPath = Join-Path $root "app\config.py"
 $configContent = [System.IO.File]::ReadAllText($configPath)
 # "바뀐 내용이 있는지"(-eq 비교)가 아니라 "패턴 자체가 있었는지"(-match)로
@@ -70,8 +70,13 @@ $configContent = [System.IO.File]::ReadAllText($configPath)
 # "못 찾음"으로 잘못 판단해버린다.
 if ($configContent -notmatch 'APP_VERSION = "[^"]*"') { throw "app/config.py에서 APP_VERSION 줄을 찾지 못했습니다." }
 $newConfigContent = $configContent -replace 'APP_VERSION = "[^"]*"', "APP_VERSION = `"$Version`""
+
+$releaseDate = Get-Date -Format "yyyy-MM-dd"
+if ($newConfigContent -notmatch 'APP_RELEASE_DATE = "[^"]*"') { throw "app/config.py에서 APP_RELEASE_DATE 줄을 찾지 못했습니다." }
+$newConfigContent = $newConfigContent -replace 'APP_RELEASE_DATE = "[^"]*"', "APP_RELEASE_DATE = `"$releaseDate`""
+
 Write-Utf8NoBom $configPath $newConfigContent
-Write-Output "완료"
+Write-Output "완료 (버전 $Version, 날짜 $releaseDate)"
 
 # ---------- 2) installer/setup.iss의 MyAppVersion 갱신 ----------
 Write-Step "2/6  installer/setup.iss MyAppVersion -> $Version"
