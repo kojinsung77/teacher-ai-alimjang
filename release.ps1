@@ -127,9 +127,14 @@ gh release create $tag $setupPath.FullName --repo "$GhOwner/$GhRepo" --title $ta
 if ($LASTEXITCODE -ne 0) { throw "gh release create 실패" }
 Write-Output "릴리스 생성 완료: https://github.com/$GhOwner/$GhRepo/releases/tag/$tag"
 
-# ---------- 6) version.json 커밋 + 푸시 ----------
-Write-Step "6/6  version.json 커밋 + 푸시"
-git -C $root add version.json
+# ---------- 6) 버전 문자열이 바뀐 파일 전부 커밋 + 푸시 ----------
+Write-Step "6/6  버전 관련 파일 커밋 + 푸시"
+# version.json만 커밋하면 1/2단계에서 로컬에 반영한 app/config.py의
+# APP_VERSION, installer/setup.iss의 MyAppVersion은 빠진 채로 남는다 —
+# 태그·릴리스·version.json은 새 버전인데 저장소 소스 코드만 이전 버전
+# 문자열을 담고 있는 불일치가 실제로 두 번(v1.2.1, v1.2.2) 발생했던
+# 문제라, 이 세 파일을 항상 함께 커밋한다.
+git -C $root add version.json app/config.py installer/setup.iss
 git -C $root commit -m "release: v$Version"
 if ($LASTEXITCODE -ne 0) { throw "git commit 실패" }
 git -C $root push origin master
