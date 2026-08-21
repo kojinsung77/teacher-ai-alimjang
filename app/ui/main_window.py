@@ -153,13 +153,14 @@ class MainWindow(QMainWindow):
         brand_row.addLayout(brand_text, 1)
         side_layout.addLayout(brand_row)
 
-        # 지금은 테스트 배포 단계 — 눈에 거슬리지 않는 작은 배지로만
-        # 표시하고, 누르면 바로 건의사항 메일 작성창이 열리게 해서
-        # 테스트 참여 선생님이 문제를 발견하면 바로 보낼 수 있게 한다.
-        test_badge = QPushButton("🧪 테스트 버전")
+        # 현재 실행 중인 버전을 눈에 거슬리지 않는 작은 배지로 보여주고,
+        # 누르면 바로 건의사항 메일 작성창이 열리게 해서 선생님이 문제를
+        # 발견하면 바로 보낼 수 있게 한다. config.APP_VERSION을 그대로
+        # 읽으므로 다음 버전이 올라가도 여기는 따로 안 고쳐도 된다.
+        test_badge = QPushButton(f"v{config.APP_VERSION}")
         test_badge.setObjectName("TestBadge")
         test_badge.setCursor(Qt.PointingHandCursor)
-        test_badge.setToolTip("테스트 배포 버전입니다. 눌러서 건의사항을 보내주세요.")
+        test_badge.setToolTip("눌러서 건의사항을 보내주세요.")
         test_badge.clicked.connect(lambda: webbrowser.open(_build_feedback_url()))
         side_layout.addWidget(test_badge, 0, Qt.AlignLeft)
 
