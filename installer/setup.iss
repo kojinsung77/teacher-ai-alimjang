@@ -22,7 +22,7 @@
 
 #define MyAppName "교사업무 AI 알림장"
 ; app/config.py의 APP_VERSION과 항상 맞춰서 올린다.
-#define MyAppVersion "1.3.5"
+#define MyAppVersion "1.3.6"
 #define MyAppPublisher "Gosussam"
 #define MyAppExeName "TeacherAlimjang.exe"
 #define MyAppId "{{0D2E7F2C-B6D4-45CF-9D4B-79DAAAF99FAB}"
@@ -92,7 +92,12 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; 설치가 끝나면 앱이 자동으로 다시 켜져야 하기 때문이다. skipifsilent가
 ; 있으면 조용한 설치 뒤에 앱이 안 켜져서 사용자가 직접 다시 실행해야
 ; 하는 문제가 생긴다.
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
+; shellexec 플래그 — 기본(CreateProcess 직접 호출)으로 두면 부모가
+; Setup.exe가 되어 PyInstaller 부트로더의 부모-프로세스 검증에 걸려
+; "Security validation failure" 오류창이 뜬다(아래 CurStepChanged의
+; ShellExec() 주석 참고, 같은 원인이라 여기도 동일하게 셸을 경유하게
+; 바꾼다).
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall shellexec
 
 ; ---------------------------------------------------------------------------
 ; 절대 추가하면 안 되는 것 (참고용 경고 주석):
@@ -139,15 +144,28 @@ end;
   체크박스"용 플래그라, 화면 자체가 안 뜨는 완전 침묵 모드에서는
   Inno Setup이 그 항목을 아예 건너뛰는 것으로 보인다. 그래서 조용한
   설치일 때만 여기서 명시적으로 실행한다 — 일반(대화형) 설치는
-  Run 섹션의 postinstall 체크박스가 이미 정상 동작하므로 그대로 둔다. }
+  Run 섹션의 postinstall 체크박스(shellexec 플래그 적용)가 이미 정상
+  동작하므로 그대로 둔다.
+
+  Exec()이 아니라 ShellExec()을 쓴다 — 실측으로 확인한 또 다른 실패
+  경로: PyInstaller(6.x) onefile 부트로더가 "내 부모 프로세스가 나와
+  같은 실행파일이 맞는지" 검증하는 보안 기능을 갖고 있는데, Exec()으로
+  직접 CreateProcess하면 그 즉시 부모가 Setup.exe/unins000.exe가 되어
+  이 검증에 걸려 "Security validation failure: parent process has
+  different executable!" 오류창을 띄우며 앱이 시작조차 못 한다(실제
+  배포된 v1.3.2로 재현 — 설치 자체는 성공해 레지스트리 버전은 바뀌지만
+  자동 재실행된 창이 이 오류창이라 사용자는 "설치했는데 앱이 이상하다"
+  로 느낀다). ShellExec()은 탐색기(익스플로러) 셸을 통해 실행을
+  위임하므로, 사용자가 직접 더블클릭했을 때와 같은 부모-자식 관계가
+  되어 이 검증을 통과한다. }
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
 begin
   if (CurStep = ssDone) and WizardSilent() then
   begin
-    Exec(ExpandConstant('{app}\{#MyAppExeName}'), '', '', SW_SHOWNORMAL,
-      ewNoWait, ResultCode);
+    ShellExec('', ExpandConstant('{app}\{#MyAppExeName}'), '', '',
+      SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
 end;
 

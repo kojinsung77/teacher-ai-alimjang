@@ -1,6 +1,6 @@
 {
-  "version": "1.3.5",
-  "notes": "[중요] 자동 설치가 조용히 실패하는 두 번째 원인 발견 및 수정 — 앱이 self.close()로 종료되는 시점과 PyInstaller 부모 런처 프로세스가 실제로 exe 파일 핸들을 완전히 놓는 시점 사이에 시차가 있어, 그 틈에 설치 프로그램이 파일을 덮어쓰려 하면 RestartManager가 '사용 중'으로 보고 조용히 취소되는 경우를 실제 배포된 v1.3.2로 재현. 설치 프로그램 시작 시 짧은 대기를 추가해 경합을 완화하고, Inno Setup 자체 로그를 앱 진단 폴더(installer_last_run.log)에 항상 남기도록 개선.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.3.5/TeacherAlimjang_Setup_v1.3.5.exe",
-  "sha256": "7cfb4277b6c7b0a432e50dabe402aa7e30528594f7871481986a151137b9a3e2"
+  "version": "1.3.6",
+  "notes": "[중요] 자동 업데이트/설치 후 앱이 자동으로 다시 켜지지 않고 '오류' 창만 뜨던 근본 원인을 발견 및 수정 — PyInstaller(6.x) onefile 부트로더가 보안상 '내 부모 프로세스가 나와 같은 실행파일인지' 검증하는데, 설치 프로그램이 Exec()으로 앱을 직접 재실행하면 부모가 Setup.exe가 되어(그리고 그 직후 Setup.exe 자체가 종료돼버려) 이 검증에 실패해 'Security validation failure' 오류창이 뜸. 실제 배포된 v1.3.2로 재현 확인. ShellExec()으로 바꿔 탐색기 셸을 경유하도록 수정 — 이제 사용자가 직접 더블클릭한 것과 동일한 부모-자식 관계가 되어 정상 통과. 조용한 설치와 대화형 설치(마침 화면의 '지금 실행') 양쪽 모두 적용.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.3.6/TeacherAlimjang_Setup_v1.3.6.exe",
+  "sha256": "2c30fd2ab56e2c3f50ad97694256d55e5ea2cec47fe16a1e332995d95c1324f7"
 }
