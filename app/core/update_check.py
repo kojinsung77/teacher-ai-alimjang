@@ -13,6 +13,7 @@ app/ui/main_window.py가 맡고, 사람이 직접 받을 수 있는 경로
 import hashlib
 import json
 import shutil
+import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,7 @@ from pathlib import Path
 from .. import config, db
 
 _SETTING_KEY_IGNORED_VERSION = "update_ignored_version"
+_LOG_FILENAME = "update_debug.log"
 
 
 def _parse_version(version: str) -> tuple:
@@ -39,17 +41,19 @@ def is_newer(remote_version: str, local_version: str) -> bool:
 
 
 def log_update_event(reason: str):
-    """업데이트 확인/다운로드/설치 흐름에서 생긴 일을 update_check.log에
-    한 줄 남긴다(이 함수 자체 이름은 "확인" 실패용으로 시작했지만,
-    main_window.py의 조용한 설치 실행 단계에서도 그대로 재사용한다 —
-    둘 다 "사용자 화면엔 안 띄우고 로그만 남기는" 같은 원칙이라 로그
-    파일을 굳이 나눌 이유가 없다). 사용자 화면엔 아무것도 안 띄우는
-    조용한 실패 원칙은 그대로 유지하되(팝업 없음), 나중에 "왜 안 됐는지"
-    진단할 방법이 전혀 없었던 문제를 해결하기 위한 것 — 로그 남기기
-    자체가 실패해도(디스크 꽉 참 등) 절대 앱을 죽이면 안 되므로 여기서도
+    """업데이트 확인/다운로드/검증/설치 흐름에서 생긴 일을
+    update_debug.log에 한 줄 남긴다. 실패·예외뿐 아니라 각 단계의
+    시작/종료도 항상 남긴다 — 자동 업데이트가 "아무 일도 없이"
+    조용히 실패하는 문제가 이미 두 번 있었고, 두 번 다 예외가 안 나서
+    사후에 어느 단계까지 갔는지 알 방법이 없었다. 실패 시에만 남기던
+    걸로는 "그 단계에 도달하긴 했는지" 자체를 알 수 없어서, 정상 진행
+    상황도 남겨야 다음에 비슷한 문제가 생겼을 때 로그만 보고 어디서
+    멈췄는지 바로 짚을 수 있다. 사용자 화면엔 아무것도 안 띄우는 조용한
+    실패 원칙은 그대로 유지하고(팝업 없음), 로그 남기기 자체가
+    실패해도(디스크 꽉 참 등) 절대 앱을 죽이면 안 되므로 여기서도
     예외를 전부 삼킨다."""
     try:
-        log_path = config.app_data_dir() / "update_check.log"
+        log_path = config.app_data_dir() / _LOG_FILENAME
         timestamp = datetime.now().isoformat(timespec="seconds")
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{timestamp}] {reason}\n")
@@ -65,18 +69,20 @@ def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
     띄우고 update_check.log에만 남긴다(진단용)."""
     url = config.UPDATE_CHECK_URL
     if not url:
-        log_update_event("UPDATE_CHECK_URL이 비어 있음")
+        log_update_event("[확인] UPDATE_CHECK_URL이 비어 있음")
         return None
+    log_update_event(f"[확인] 시작 url={url}")
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
         data = json.loads(raw)
         if not isinstance(data, dict) or "version" not in data:
-            log_update_event(f"version.json 형식이 이상함: {raw[:200]!r}")
+            log_update_event(f"[확인] version.json 형식이 이상함: {raw[:200]!r}")
             return None
+        log_update_event(f"[확인] 성공 원격버전={data.get('version')}")
         return data
     except Exception as e:
-        log_update_event(f"{type(e).__name__}: {e}")
+        log_update_event(f"[확인] 실패 {type(e).__name__}: {e}")
         return None
 
 
@@ -87,7 +93,9 @@ def check_for_update() -> dict | None:
     if not info:
         return None
     if is_newer(info["version"], config.APP_VERSION):
+        log_update_event(f"[확인] 새 버전 있음 {config.APP_VERSION} -> {info['version']}")
         return info
+    log_update_event(f"[확인] 최신 버전임 (현재={config.APP_VERSION}, 원격={info['version']})")
     return None
 
 
@@ -127,9 +135,11 @@ def download_and_verify_update(info: dict, timeout: float = 30.0) -> Path | None
     이유로든 실패하면 조용히 None을 반환하고 받다 만 파일은 지운다 —
     호출부가 실패 원인을 사용자에게 알릴 필요가 전혀 없도록(팝업 없는
     조용한 실패 원칙) 여기서 전부 흡수한다."""
+    version = (info or {}).get("version", "update")
     download_url = (info or {}).get("download_url", "")
     expected_sha256 = ((info or {}).get("sha256") or "").strip().lower()
     if not download_url or not expected_sha256:
+        log_update_event(f"[다운로드] v{version} download_url/sha256 누락 — 시작 안 함")
         return None
 
     updates_folder = updates_dir()
@@ -141,19 +151,28 @@ def download_and_verify_update(info: dict, timeout: float = 30.0) -> Path | None
         except OSError:
             pass
 
-    version = (info or {}).get("version", "update")
     dest = updates_folder / f"TeacherAlimjang_Setup_v{version}.exe"
 
+    log_update_event(f"[다운로드] v{version} 시작")
+    start = time.monotonic()
     try:
         with urllib.request.urlopen(download_url, timeout=timeout) as resp, open(dest, "wb") as f:
             shutil.copyfileobj(resp, f)
+        elapsed = time.monotonic() - start
+        size = dest.stat().st_size
+        log_update_event(f"[다운로드] v{version} 완료 {size}바이트 {elapsed:.1f}초")
 
         actual_sha256 = _sha256_of_file(dest)
         if actual_sha256.lower() != expected_sha256:
+            log_update_event(
+                f"[검증] v{version} 실패 — 해시 불일치 (기대={expected_sha256[:12]}…, 실제={actual_sha256[:12]}…)"
+            )
             dest.unlink(missing_ok=True)
             return None
+        log_update_event(f"[검증] v{version} 통과")
         return dest
-    except Exception:
+    except Exception as e:
+        log_update_event(f"[다운로드] v{version} 실패 {type(e).__name__}: {e}")
         try:
             dest.unlink(missing_ok=True)
         except OSError:

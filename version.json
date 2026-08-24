@@ -1,6 +1,6 @@
 {
-  "version": "1.3.3",
-  "notes": "구글 드라이브 배포 관련 코드 정리 — update_check.py에서 더 이상 쓰이지 않는 드라이브 공유링크 변환/확인페이지 우회 로직을 제거하고 순수 GitHub Releases 다운로드 경로로 단순화. 사용자 기능 변경 없음.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.3.3/TeacherAlimjang_Setup_v1.3.3.exe",
-  "sha256": "7cd98eb4622ac3206545b0dd6b1e9f4f0a24d9a0f57eac72e74ebb2a6328c2ca"
+  "version": "1.3.4",
+  "notes": "[중요] 자동 설치가 조용히 실패하는 새 경로 발견 및 대응 — 다른 인스턴스가 설치 뮤텍스를 쥐고 있으면 설치 프로그램이 확인창을 띄우려다 자동으로 취소되어 EAbort로 즉시 종료되는데, 이 경우 우리 앱은 종료 코드를 확인하지 않아 아무 표시 없이 창만 사라졌음. 설치 프로세스 실행 직후 짧게 생존 여부를 확인해 로그로 남기도록 개선. 업데이트 확인/다운로드/검증/설치 전 단계를 항상 update_debug.log에 기록하도록 진단 로그 강화.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.3.4/TeacherAlimjang_Setup_v1.3.4.exe",
+  "sha256": "e2ab992314ce8c9a14afc50c829448e643f9e2f816d84192147efdbde493c26f"
 }

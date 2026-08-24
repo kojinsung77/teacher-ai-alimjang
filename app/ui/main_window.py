@@ -2,6 +2,7 @@
 """메인 윈도우 — 왼쪽 사이드바 네비게이션 + 오른쪽 콘텐츠 영역."""
 
 import subprocess
+import time
 import traceback
 import urllib.parse
 import webbrowser
@@ -369,7 +370,7 @@ class MainWindow(QMainWindow):
         _pending_update_info가 가리키는 버전이 그 사이 서버에서
         삭제/교체돼(예: 릴리스를 다시 올리는 도중이었다거나) 다운로드가
         조용히 실패하는 경우로 추정된다. 그래서 각 분기가 실제로 어느
-        길로 갔는지 로그로 남겨서, 다음에 재발하면 update_check.log만
+        길로 갔는지 로그로 남겨서, 다음에 재발하면 update_debug.log만
         봐도 바로 원인을 알 수 있게 한다."""
         if self._verified_installer_path is not None and self._verified_installer_path.exists():
             update_check.log_update_event("[지금 설치] 클릭 — 이미 검증된 파일로 즉시 설치")
@@ -420,22 +421,46 @@ class MainWindow(QMainWindow):
         이 함수는 Qt 시그널 슬롯이라 여기서 예외가 나면(방화벽/백신이
         설치 파일 실행을 막는 경우 등) windowed 빌드는 콘솔이 없어
         예외가 그냥 조용히 사라지고 아무 단서도 안 남는다 — 그래서
-        전체를 try/except로 감싸 update_check.log에 남긴다(사용자에게는
-        여전히 팝업을 띄우지 않는다는 원칙은 그대로 유지)."""
+        전체를 try/except로 감싸 update_debug.log에 남긴다(사용자에게는
+        여전히 팝업을 띄우지 않는다는 원칙은 그대로 유지).
+
+        Popen 호출 자체가 성공해도 Setup.exe가 그 직후에 조용히 죽는
+        경우가 실제로 있다는 걸 이번에 확인했다 — 예를 들어
+        AppMutex(TeacherAlimjangRunningMutex)를 다른 프로세스가 아직
+        쥐고 있으면 Setup은 "이미 실행 중" 확인창을 띄우려다
+        /SUPPRESSMSGBOXES 때문에 자동으로 취소 처리되고 EAbort로 그냥
+        종료해버린다 — 종료 코드도 우리 쪽에서 확인 안 하고, 예외도 안
+        나고, 사용자 화면엔 배너/앱이 사라지는 것만 보인다("지금 설치"
+        눌러도 아무 일 없다는 보고와 정확히 일치하는 증상). Popen은
+        논블로킹이라 기본적으로 이 실패를 알 도리가 없으므로, 아주 짧게
+        (0.8초) 기다렸다가 그새 죽었는지만 확인해서 로그를 남긴다 —
+        정상 설치는 이 시점에 이미 파일 압축 해제 중이라 절대 이만큼
+        빨리 안 끝나므로, 체감 속도에는 영향이 없다."""
         try:
             self._auto_sync_timer.stop()
 
             from ..core import single_instance
             single_instance.release_install_mutex()
 
-            subprocess.Popen(
+            update_check.log_update_event(f"[설치] 실행 시도 경로={installer_path}")
+            proc = subprocess.Popen(
                 [str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
                 close_fds=True,
                 creationflags=subprocess.CREATE_BREAKAWAY_FROM_JOB,
             )
+            time.sleep(0.8)
+            returncode = proc.poll()
+            if returncode is not None:
+                update_check.log_update_event(
+                    f"[설치] 실행 직후 이미 종료됨 returncode={returncode} — "
+                    "설치가 시작도 못했을 가능성 높음(다른 인스턴스가 AppMutex를 "
+                    "쥐고 있거나, 손상된 설치 파일 등)"
+                )
+            else:
+                update_check.log_update_event(f"[설치] 실행 확인됨 PID={proc.pid}, 앱 종료 진행")
         except Exception as e:
             update_check.log_update_event(
-                f"설치 실행 실패: {type(e).__name__}: {e} (경로: {installer_path})"
+                f"[설치] 실행 실패: {type(e).__name__}: {e} (경로: {installer_path})"
             )
             # 설치 파일이 그새 지워졌다거나, 실행 자체가 막힌 경우 —
             # 조용히 포기. 팝업 없음, 배너는 [지금 설치]를 다시 누를 수
