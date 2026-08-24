@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """메인 윈도우 — 왼쪽 사이드바 네비게이션 + 오른쪽 콘텐츠 영역."""
 
+import os
 import subprocess
 import time
 import traceback
@@ -458,6 +459,25 @@ class MainWindow(QMainWindow):
             update_check.log_update_event(
                 f"[설치] 실행 시도 경로={installer_path} 로그={installer_log_path}"
             )
+            # 우리 자신이 PyInstaller onefile의 "자식" 단계로 떠 있는
+            # 프로세스라, _PYI_로 시작하는 내부 환경변수(부모-자식
+            # 재실행 단계·임시 압축해제 경로 등)가 이미 우리 환경에
+            # 설정돼 있다. subprocess.Popen()은 기본적으로 부모(우리)의
+            # 환경을 통째로 물려주므로, 그대로 두면 Setup.exe와 그
+            # Setup.exe가 다시 실행하는 새 TeacherAlimjang.exe까지 이
+            # 변수를 그대로 물려받는다 — 새로 실행된 앱이 "나는 이미
+            # 재실행된 자식 단계"라고 착각해 자기 자신의 정상 1단계
+            # 부트스트랩을 건너뛰고 곧장 부모-프로세스 검증에 들어가는데,
+            # 그 시점의 실제 부모는 Setup.exe라 검증에 실패해 "Security
+            # validation failure: parent process has different
+            # executable!" 오류창이 뜬다. Setup.iss 쪽에서 재실행
+            # 시점을 늦춰봐도(InitializeSetup/CurStepChanged의 Sleep)
+            # 이 문제는 타이밍과 무관하게 100%에 가깝게 재현돼서 원인이
+            # 아니었다 — 실제로는 환경변수 오염이었다. Setup.exe를 띄울
+            # 때 _PYI_ 변수를 지운 깨끗한 환경을 넘겨서, Setup.exe와
+            # 그 자식 모두 우리 프로세스의 내부 상태를 물려받지 않게
+            # 한다.
+            clean_env = {k: v for k, v in os.environ.items() if not k.startswith("_PYI")}
             proc = subprocess.Popen(
                 [
                     str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
@@ -465,6 +485,7 @@ class MainWindow(QMainWindow):
                 ],
                 close_fds=True,
                 creationflags=subprocess.CREATE_BREAKAWAY_FROM_JOB,
+                env=clean_env,
             )
             time.sleep(0.8)
             returncode = proc.poll()
