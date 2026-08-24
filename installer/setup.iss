@@ -22,7 +22,7 @@
 
 #define MyAppName "교사업무 AI 알림장"
 ; app/config.py의 APP_VERSION과 항상 맞춰서 올린다.
-#define MyAppVersion "1.3.8"
+#define MyAppVersion "1.3.9"
 #define MyAppPublisher "Gosussam"
 #define MyAppExeName "TeacherAlimjang.exe"
 #define MyAppId "{{0D2E7F2C-B6D4-45CF-9D4B-79DAAAF99FAB}"
@@ -119,6 +119,45 @@ var
   UninstallDeleteDataChecked: Boolean;
   UninstallLogMemo: TNewMemo;
 
+function SetEnvironmentVariableW(lpName, lpValue: WideString): BOOL;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+{ ---------- -2. PyInstaller onefile 부트로더의 부모-프로세스 검증
+  오염 방지 ---------- }
+{ "Security validation failure: parent process has different
+  executable!" 오류로 자동 재실행된 앱이 뜨자마자 죽는 문제의 진짜
+  원인 — 우리 앱(Python/PyInstaller onefile) 자신이 이미 부트로더의
+  "2단계(자식)" 프로세스로 떠 있는 상태라 _PYI_로 시작하는 내부
+  환경변수가 우리 프로세스 환경에 설정돼 있다. 앱이 [지금 설치]에서
+  이 설치 프로그램(Setup.exe)을 subprocess.Popen()으로 띄우면
+  Windows는 기본적으로 부모(앱)의 환경변수를 통째로 물려주므로, 이
+  변수들이 Setup.exe 프로세스 환경에도 그대로 들어온다. 이 설치
+  프로그램이 CurStepChanged에서 Exec()으로 새 TeacherAlimjang.exe를
+  재실행할 때도 마찬가지로 Setup.exe의(=오염된) 환경을 그대로
+  물려주므로, 갓 실행된 새 앱이 "나는 이미 재실행된 2단계 자식"이라고
+  착각해 정상적인 1단계 부트스트랩(자기 자신을 다시 한번 자식으로
+  띄우는 절차)을 건너뛰고 곧장 부모-프로세스 검증에 들어간다 — 그
+  시점의 실제 부모는 Setup.exe라 실행파일이 다르다고 검증에 실패한다.
+
+  app/ui/main_window.py의 _run_silent_install()에서도 Setup.exe를
+  띄울 때 이 변수를 지운 환경을 넘기도록 고쳤지만, 그건 그 수정이
+  "이미 반영된 버전"이 실행 중일 때만 효과가 있다 — 지금 v1.2.x/
+  v1.3.x대 구버전을 쓰는 사람이 처음으로 [지금 설치]를 눌러 이번
+  설치 프로그램을 내려받아 실행하는 바로 그 순간에는, 그 구버전
+  앱의 옛날 코드가 여전히 오염된 환경 그대로 Setup.exe를 띄운다.
+  그래서 여기, 매번 새로 다운로드되는 설치 프로그램 쪽에서도 독립적
+  으로 방어해야 실제로 지금 이 순간의 구버전 사용자에게도 적용된다
+  — Setup.exe 자신의 프로세스 환경에서 이 변수들을 명시적으로
+  지워서, 이후 Exec()으로 재실행하는 새 앱이 깨끗한 환경을 물려받게
+  한다. 실제 배포된 v1.3.2로 반복 재현 후 확인. }
+procedure ClearPyiEnvVars();
+begin
+  SetEnvironmentVariableW('_PYI_APPLICATION_HOME_DIR', '');
+  SetEnvironmentVariableW('_PYI_ARCHIVE_FILE', '');
+  SetEnvironmentVariableW('_PYI_PARENT_PROCESS_LEVEL', '');
+  SetEnvironmentVariableW('_PYI_SPLASH_IPC', '');
+end;
+
 { ---------- -1. 앱 자체 업데이트 직후 실행될 때의 파일 잠금 경합 대비 ---------- }
 { 앱의 [지금 설치]가 이 설치 프로그램을 subprocess.Popen()으로 띄운 직후
   자기 자신은 곧바로 self.close()로 종료하는데, PyInstaller onefile
@@ -136,6 +175,7 @@ var
   뜨는 데 어차피 걸리는 시간에 묻혀 체감되지 않는다. }
 function InitializeSetup(): Boolean;
 begin
+  ClearPyiEnvVars();
   Sleep(1500);
   Result := True;
 end;
