@@ -22,7 +22,7 @@
 
 #define MyAppName "교사업무 AI 알림장"
 ; app/config.py의 APP_VERSION과 항상 맞춰서 올린다.
-#define MyAppVersion "1.3.6"
+#define MyAppVersion "1.3.7"
 #define MyAppPublisher "Gosussam"
 #define MyAppExeName "TeacherAlimjang.exe"
 #define MyAppId "{{0D2E7F2C-B6D4-45CF-9D4B-79DAAAF99FAB}"
@@ -92,12 +92,16 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; 설치가 끝나면 앱이 자동으로 다시 켜져야 하기 때문이다. skipifsilent가
 ; 있으면 조용한 설치 뒤에 앱이 안 켜져서 사용자가 직접 다시 실행해야
 ; 하는 문제가 생긴다.
-; shellexec 플래그 — 기본(CreateProcess 직접 호출)으로 두면 부모가
-; Setup.exe가 되어 PyInstaller 부트로더의 부모-프로세스 검증에 걸려
-; "Security validation failure" 오류창이 뜬다(아래 CurStepChanged의
-; ShellExec() 주석 참고, 같은 원인이라 여기도 동일하게 셸을 경유하게
-; 바꾼다).
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall shellexec
+; 조용한 설치 쪽(CurStepChanged)에서 PyInstaller 부트로더의 부모-
+; 프로세스 검증이 Setup.exe가 너무 빨리 종료돼서 실패하는 문제를
+; 찾아 고쳤다(아래 CurStepChanged 주석 참고) — 여기 대화형 설치
+; 경로는 마법사 화면이 남아 있는 동안 Setup.exe 프로세스 자체가
+; 자연히 더 오래 살아있어서 같은 경합이 훨씬 덜 발생하는 것으로
+; 보이지만(실측상 대화형 설치의 이 문제는 아직 재현 못 함), 이론상
+; 완전히 배제된 건 아니다. 지금은 조용한 설치(자동 업데이트) 경로가
+; 실사용자 보고의 핵심이라 그쪽부터 고쳤고, 대화형 쪽에서도 재현되면
+; 같은 방식(Exec 뒤 Sleep)으로 추가 조치한다.
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 
 ; ---------------------------------------------------------------------------
 ; 절대 추가하면 안 되는 것 (참고용 경고 주석):
@@ -143,29 +147,33 @@ end;
   "마법사 마지막 화면의
   체크박스"용 플래그라, 화면 자체가 안 뜨는 완전 침묵 모드에서는
   Inno Setup이 그 항목을 아예 건너뛰는 것으로 보인다. 그래서 조용한
-  설치일 때만 여기서 명시적으로 실행한다 — 일반(대화형) 설치는
-  Run 섹션의 postinstall 체크박스(shellexec 플래그 적용)가 이미 정상
-  동작하므로 그대로 둔다.
+  설치일 때만 여기서 명시적으로 실행한다.
 
-  Exec()이 아니라 ShellExec()을 쓴다 — 실측으로 확인한 또 다른 실패
-  경로: PyInstaller(6.x) onefile 부트로더가 "내 부모 프로세스가 나와
-  같은 실행파일이 맞는지" 검증하는 보안 기능을 갖고 있는데, Exec()으로
-  직접 CreateProcess하면 그 즉시 부모가 Setup.exe/unins000.exe가 되어
-  이 검증에 걸려 "Security validation failure: parent process has
-  different executable!" 오류창을 띄우며 앱이 시작조차 못 한다(실제
-  배포된 v1.3.2로 재현 — 설치 자체는 성공해 레지스트리 버전은 바뀌지만
-  자동 재실행된 창이 이 오류창이라 사용자는 "설치했는데 앱이 이상하다"
-  로 느낀다). ShellExec()은 탐색기(익스플로러) 셸을 통해 실행을
-  위임하므로, 사용자가 직접 더블클릭했을 때와 같은 부모-자식 관계가
-  되어 이 검증을 통과한다. }
+  ShellExec()으로 바꿔봤지만(v1.3.6) 효과가 없었다 — PyInstaller
+  공식 changelog(6.22.1)로 원인을 다시 확인해보니, 이 검증은
+  "실행파일 재실행의 안쪽(부트로더 1단계→2단계) 부모-자식 관계"를
+  보는 것이라 누가 Setup.exe를 거쳐 우리 exe를 최초로 띄웠는지와는
+  무관하고(ShellExec이든 Exec이든 실질적으로 같은 CreateProcess로
+  귀결됨 — .exe 파일은 탐색기 셸을 경유하지 않고 곧장 실행됨), 진짜
+  원인은 타이밍 경합이었다: Setup.exe가 우리 exe를 띄운 직후
+  ssDone이 곧바로 끝나며 Setup.exe 자신도 몇백 ms 안에 완전히
+  종료되는데, 그 사이에 방금 띄운 부트로더 1단계 프로세스가 내부
+  검증 시점에 "내 부모(Setup.exe)의 실행파일 경로"를 조회하면 그새
+  부모가 사라져(또는 PID가 재사용돼) 조회가 어긋나면서 검증이
+  실패한다(실제 배포된 v1.3.2/v1.3.6으로 재현 — 설치 자체는 매번
+  성공해 레지스트리 버전은 바뀌지만, 자동 재실행된 창이 이 오류창일
+  때가 있다). 그래서 Exec 뒤에 Setup.exe 프로세스 자체가 몇 초간 더
+  살아있게 붙잡아 둔다 — 부트로더의 부모 검증이 이 짧은 창 안에서
+  끝나므로, 부모가 아직 살아있어야 통과한다. }
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
 begin
   if (CurStep = ssDone) and WizardSilent() then
   begin
-    ShellExec('', ExpandConstant('{app}\{#MyAppExeName}'), '', '',
-      SW_SHOWNORMAL, ewNoWait, ResultCode);
+    Exec(ExpandConstant('{app}\{#MyAppExeName}'), '', '', SW_SHOWNORMAL,
+      ewNoWait, ResultCode);
+    Sleep(3000);
   end;
 end;
 
