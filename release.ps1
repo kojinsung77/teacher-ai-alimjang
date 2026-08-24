@@ -137,12 +137,15 @@ Write-Step "6/6  버전 관련 파일 + 소스 변경 커밋 + 푸시"
 # version.json/app/config.py/installer/setup.iss 세 파일만 커밋하던 때는
 # 1/2단계가 반영한 버전 문자열은 빠짐없이 커밋됐지만, "이번 릴리스를
 # 위해 같이 고친 다른 소스 파일"은 커밋 대상이 아니라서 빌드된 exe에는
-# 들어갔는데 정작 저장소에는 반영이 안 되는 사고가 실제로 한 번 있었다
-# (update_check.py 정리가 v1.3.3 빌드에는 포함됐지만 git에는 안 올라감).
-# git add -u로 이미 추적 중인 파일의 수정분을 전부 잡아서 같은 문제가
-# 다시 생기지 않게 한다 — 추적 안 되는 새 파일까지 끌어들이지는 않으므로
-# 무관한 스크래치 파일이 실수로 끼어들 걱정은 없다.
-git -C $root add -u
+# 들어갔는데 정작 저장소에는 반영이 안 되는 사고가 실제로 두 번 있었다
+# (update_check.py 정리가 v1.3.3 빌드에는 포함됐지만 git에는 안 올라간
+# 적, 그리고 새로 추가한 app/ui/update_modal.py가 v1.3.10 빌드에는
+# 들어갔는데 git add -u가 "이미 추적 중인 파일의 수정"만 잡고 새로
+# 추가된(untracked) 파일은 빼먹어서 저장소엔 반영이 안 된 적). 그래서
+# git add -A로 바꿨다 — .gitignore가 build/dist/installer/output/
+# __pycache__ 등 빌드 산출물·캐시를 이미 확실히 걸러주므로, 새로 추가한
+# 소스 파일이든 수정한 파일이든 전부 안전하게 함께 잡힌다.
+git -C $root add -A
 git -C $root commit -m "release: v$Version"
 if ($LASTEXITCODE -ne 0) { throw "git commit 실패" }
 git -C $root push origin master
