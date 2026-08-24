@@ -3,15 +3,20 @@
 오른쪽에 선택한 날짜의 업무 목록을 보여준다.
 
 이번 범위에서는 회의/행사/연수 같은 업무 외 일정은 다루지 않는다 — 업무
-마감일(tasks.deadline)만 달력에 표시한다. 별도 이벤트 테이블은 만들지 않았다."""
+마감일(tasks.deadline)만 달력에 표시한다. 별도 이벤트 테이블은 만들지 않았다.
+
+휴일(자동 알림장을 만들지 않을 날) 지정은 db.holidays 테이블을 그대로
+쓴다 — 국경일 자동 채움(app/core/holidays_sync.py)이 채워준 날짜와
+선생님이 직접 체크박스로 지정한 날짜가 함께 들어간다."""
 
 from PySide6.QtCore import QDate
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCalendarWidget,
-    QScrollArea
+    QScrollArea, QCheckBox
 )
 
+from .. import db
 from ..core import stats
 from .styles import COLORS
 
@@ -57,6 +62,7 @@ class CalendarView(QWidget):
         self.calendar.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
         self.calendar.setHorizontalHeaderFormat(QCalendarWidget.ShortDayNames)
         self.calendar.selectionChanged.connect(self._render_selected_day)
+        self.calendar.currentPageChanged.connect(self._mark_calendar_dates)
         content_row.addWidget(self.calendar, 2)
 
         panel = QFrame()
@@ -68,6 +74,10 @@ class CalendarView(QWidget):
         self.panel_date_label = QLabel("")
         self.panel_date_label.setObjectName("SectionTitle")
         panel_layout.addWidget(self.panel_date_label)
+
+        self.holiday_checkbox = QCheckBox("🚫 이 날은 알림장 자동 생성 안 함")
+        self.holiday_checkbox.toggled.connect(self._on_holiday_toggled)
+        panel_layout.addWidget(self.holiday_checkbox)
 
         # 날짜 제목은 스크롤 밖 상단에 고정하고, 업무 카드 목록만
         # QScrollArea로 감싼다 — 다른 화면들과 동일한 패턴(예:
@@ -96,33 +106,58 @@ class CalendarView(QWidget):
     # ---------- 데이터 로딩/표시 ----------
 
     def refresh(self):
-        self._mark_task_dates()
+        self._mark_calendar_dates()
         self._render_selected_day()
 
-    def _mark_task_dates(self):
+    def _mark_calendar_dates(self, *_args):
+        """업무 마감일 + 휴일 지정 날짜를 함께 달력에 칠한다. QCalendarWidget은
+        날짜 하나에 서식을 하나만 가질 수 있어서, 두 집합을 각각 칠하면
+        나중에 칠한 쪽이 앞의 것을 덮어써 버린다 — 그래서 항상 두 집합을
+        먼저 합쳐 계산한 뒤, 겹치는 날짜는 업무 마감일 서식에 밑줄만
+        더해서 한 번에 칠한다.
+        *_args: QCalendarWidget.currentPageChanged(year, month) 시그널에도
+        그대로 연결해 쓰므로 인자를 받되 쓰지는 않는다."""
         # 이전에 칠했던 날짜들 원상복구 후 다시 칠한다 (완료 처리 등으로
-        # 마감일 집합이 바뀔 수 있으므로 매번 다시 계산).
+        # 집합이 바뀔 수 있으므로 매번 다시 계산).
         for d_str in self._marked_dates:
             qdate = QDate.fromString(d_str, "yyyy-MM-dd")
             if qdate.isValid():
                 self.calendar.setDateTextFormat(qdate, QTextCharFormat())
 
         tasks = stats.todo_tasks()
-        dates_with_tasks = {t["deadline"] for t in tasks if t["deadline"]}
+        task_dates = {t["deadline"] for t in tasks if t["deadline"]}
 
-        fmt = QTextCharFormat()
-        fmt.setBackground(QColor(COLORS["accent"]))
-        fmt.setForeground(QColor("white"))
-        font = QFont()
-        font.setBold(True)
-        fmt.setFont(font)
+        holiday_rows = db.list_holidays_in_year(self.calendar.yearShown())
+        holiday_dates = {r["date"] for r in holiday_rows}
 
-        for d_str in dates_with_tasks:
+        task_font = QFont()
+        task_font.setBold(True)
+
+        task_fmt = QTextCharFormat()
+        task_fmt.setBackground(QColor(COLORS["accent"]))
+        task_fmt.setForeground(QColor("white"))
+        task_fmt.setFont(task_font)
+
+        task_holiday_fmt = QTextCharFormat(task_fmt)
+        task_holiday_fmt.setFontUnderline(True)
+
+        holiday_fmt = QTextCharFormat()
+        holiday_fmt.setBackground(QColor(COLORS["holiday_bg"]))
+        holiday_fmt.setForeground(QColor(COLORS["text_secondary"]))
+
+        all_dates = task_dates | holiday_dates
+        for d_str in all_dates:
             qdate = QDate.fromString(d_str, "yyyy-MM-dd")
-            if qdate.isValid():
-                self.calendar.setDateTextFormat(qdate, fmt)
+            if not qdate.isValid():
+                continue
+            if d_str in task_dates and d_str in holiday_dates:
+                self.calendar.setDateTextFormat(qdate, task_holiday_fmt)
+            elif d_str in task_dates:
+                self.calendar.setDateTextFormat(qdate, task_fmt)
+            else:
+                self.calendar.setDateTextFormat(qdate, holiday_fmt)
 
-        self._marked_dates = dates_with_tasks
+        self._marked_dates = all_dates
 
     def _render_selected_day(self):
         self._clear_panel_list()
@@ -130,6 +165,12 @@ class CalendarView(QWidget):
         date_str = qdate.toString("yyyy-MM-dd")
         weekday = _WEEKDAY_KR[qdate.dayOfWeek() - 1]
         self.panel_date_label.setText(f"{qdate.year()}년 {qdate.month()}월 {qdate.day()}일 ({weekday})")
+
+        # setChecked()가 toggled를 다시 울려 _on_holiday_toggled()가
+        # 도로 db.add_holiday/remove_holiday를 부르지 않도록 신호를 잠깐 끈다.
+        self.holiday_checkbox.blockSignals(True)
+        self.holiday_checkbox.setChecked(db.is_holiday(date_str))
+        self.holiday_checkbox.blockSignals(False)
 
         tasks = [t for t in stats.todo_tasks() if t["deadline"] == date_str]
         if not tasks:
@@ -163,3 +204,17 @@ class CalendarView(QWidget):
             self.panel_list_layout.addWidget(row)
 
         self.panel_list_layout.addStretch(1)
+
+    # ---------- 액션 ----------
+
+    def _on_holiday_toggled(self, checked: bool):
+        """체크박스를 사람이 직접 눌렀을 때만 불린다(_render_selected_day의
+        setChecked()는 blockSignals로 이 핸들러를 건너뛴다). 국경일 자동
+        채움이 넣어준 날짜라도 선생님이 체크 해제하면 그대로 지워진다 —
+        예: '이 공휴일엔 어차피 알림장을 만들 예정'인 경우."""
+        date_str = self.calendar.selectedDate().toString("yyyy-MM-dd")
+        if checked:
+            db.add_holiday(date_str, source="manual")
+        else:
+            db.remove_holiday(date_str)
+        self._mark_calendar_dates()

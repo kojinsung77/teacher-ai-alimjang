@@ -59,6 +59,12 @@ CREATE TABLE IF NOT EXISTS settings (
     key    TEXT PRIMARY KEY,
     value  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS holidays (
+    date    TEXT PRIMARY KEY,          -- ISO 날짜 (yyyy-MM-dd)
+    source  TEXT DEFAULT 'manual',     -- 'api'(공휴일 자동 채움) | 'manual'(선생님이 직접 추가)
+    name    TEXT                       -- API가 채워준 경우 "신정", "어린이날" 등. manual이면 NULL 가능
+);
 """
 
 
@@ -279,3 +285,38 @@ def list_daily_summary_dates():
             "total_completed": data.get("total_completed", 0),
         })
     return result
+
+
+# ---------- 휴일 (holidays) ----------
+
+def is_holiday(date_str: str) -> bool:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM holidays WHERE date = ? LIMIT 1", (date_str,)
+        ).fetchone()
+        return row is not None
+
+
+def add_holiday(date_str: str, source: str = "manual", name: str = None):
+    """upsert — 이미 있으면 source/name을 최신 값으로 덮어쓴다(예: 선생님이
+    수동으로 지정해둔 날짜를 나중에 공휴일 API 자동 채움이 이름까지 채워
+    주는 경우)."""
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO holidays (date, source, name) VALUES (?, ?, ?) "
+            "ON CONFLICT(date) DO UPDATE SET source = excluded.source, name = excluded.name",
+            (date_str, source, name),
+        )
+
+
+def remove_holiday(date_str: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM holidays WHERE date = ?", (date_str,))
+
+
+def list_holidays_in_year(year: int) -> list:
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM holidays WHERE date LIKE ? ORDER BY date",
+            (f"{year}-%",),
+        ).fetchall()

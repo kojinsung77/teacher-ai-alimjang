@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from .. import config, db
 from ..ai import gemini_client
-from ..core import autostart, update_check
+from ..core import autostart, holidays_sync, update_check
 from .common_widgets import HoverLiftCard
 from .messenger_setup_dialog import MessengerSetupDialog
 from .privacy_masking_dialog import PrivacyMaskingDialog
@@ -122,10 +122,58 @@ class _SettingsFormMixin:
         v.addWidget(self.close_tray_radio)
         v.addWidget(self.close_quit_radio)
 
+        v.addSpacing(4)
+        self.auto_note_check = QCheckBox("평일 자동 알림장 생성")
+        self.auto_note_check.setChecked(db.get_setting("auto_note_enabled", "1") == "1")
+        self.auto_note_check.setToolTip(
+            "평일(주말·휴일 제외) 아침 앱을 켜면 자동으로 오늘 알림장을 만듭니다.\n"
+            "꺼두면 예전처럼 [업무] 화면의 [오늘 알림장 만들기] 버튼으로만 만들 수 있습니다."
+        )
+        v.addWidget(self.auto_note_check)
+
+        v.addSpacing(4)
+        holiday_key_label = QLabel("공휴일 자동 채움 API 키 (선택)")
+        holiday_key_label.setObjectName("FormLabel")
+        v.addWidget(holiday_key_label)
+
+        holiday_key_row = QHBoxLayout()
+        self.holiday_key_input = QLineEdit()
+        self.holiday_key_input.setEchoMode(QLineEdit.Password)
+        self.holiday_key_input.setPlaceholderText("공공데이터포털 특일 정보 서비스키")
+        existing_holiday_key = holidays_sync.load_service_key()
+        if existing_holiday_key:
+            self.holiday_key_input.setText(existing_holiday_key)
+        self.holiday_key_input.deselect()
+        holiday_key_row.addWidget(self.holiday_key_input, 1)
+
+        self.holiday_key_toggle_btn = QPushButton("보기")
+        self.holiday_key_toggle_btn.setObjectName("ToggleButton")
+        self.holiday_key_toggle_btn.setCursor(Qt.PointingHandCursor)
+        self.holiday_key_toggle_btn.clicked.connect(self.on_toggle_holiday_key_visibility)
+        holiday_key_row.addWidget(self.holiday_key_toggle_btn)
+        v.addLayout(holiday_key_row)
+
+        holiday_key_desc = QLabel(
+            "국경일에는 자동 알림장을 만들지 않도록 국가 공휴일을 자동으로\n"
+            "표시합니다. 비워두면 이 자동 채움만 꺼지고, [일정] 화면에서 직접\n"
+            "휴일을 지정할 수 있습니다."
+        )
+        holiday_key_desc.setObjectName("Muted")
+        holiday_key_desc.setWordWrap(True)
+        v.addWidget(holiday_key_desc)
+
         return box
 
     def _on_autostart_toggled(self, checked: bool):
         self.autostart_hide_check.setEnabled(checked)
+
+    def on_toggle_holiday_key_visibility(self):
+        if self.holiday_key_input.echoMode() == QLineEdit.Password:
+            self.holiday_key_input.setEchoMode(QLineEdit.Normal)
+            self.holiday_key_toggle_btn.setText("숨기기")
+        else:
+            self.holiday_key_input.setEchoMode(QLineEdit.Password)
+            self.holiday_key_toggle_btn.setText("보기")
 
     def _build_gemini_section(self, root: QVBoxLayout):
         """Gemini AI 설정 본문만 root 레이아웃에 채운다: 분석 기간/AI
@@ -304,6 +352,13 @@ class _SettingsFormMixin:
             "close_action",
             "quit" if self.close_quit_radio.isChecked() else "tray",
         )
+        db.set_setting(
+            "auto_note_enabled",
+            "1" if self.auto_note_check.isChecked() else "0",
+        )
+        holiday_key = self.holiday_key_input.text().strip()
+        if holiday_key:
+            holidays_sync.save_service_key(holiday_key)
 
     def _persist_gemini_settings(self):
         key = self.key_input.text().strip()

@@ -31,6 +31,7 @@ COLORS = {
     "this_week": "#4F76F5",
     "later": "#9AA5B5",
     "unknown": "#A78BFA",
+    "holiday_bg": "#EDEFF4",
     "success": "#3D986B",
     "success_bg": "#F0FAF5",
     # 파스텔 스탯 카드

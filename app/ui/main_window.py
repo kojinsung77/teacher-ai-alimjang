@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config, db
-from ..core import autostart, stats, task_manager, update_check
+from ..core import autostart, daily_note, holidays_sync, stats, task_manager, update_check
 from .common_widgets import Toast
 from .update_modal import UpdateModal
 from .dashboard_view import DashboardView
@@ -90,6 +90,20 @@ class _AutoSyncThread(QThread):
         except Exception as e:
             traceback.print_exc()
             self.finishedError.emit(str(e))
+
+
+class _HolidaySyncThread(QThread):
+    """국가 공휴일 자동 채움(연 1회, data.go.kr)을 백그라운드에서 조용히
+    시도한다. holidays_sync.sync_if_needed()가 실패를 전부 내부에서
+    흡수하므로 여기서는 결과를 기다리거나 신경 쓸 필요가 없다 — 그래서
+    시그널도 없다. 새해 첫 실행 당일에 한해, 이 스레드가 끝나기 전에
+    MainWindow._maybe_auto_generate_note()가 먼저 오늘이 휴일인지 판단할
+    수 있어 아주 드물게(그날이 실제로는 공휴일인데 아직 못 받아온 경우)
+    자동 알림장이 만들어질 수 있다 — 수동 버튼/캘린더 수동 지정으로
+    언제든 바로잡을 수 있는 수준이라 감내한다."""
+
+    def run(self):
+        holidays_sync.sync_if_needed()
 
 
 _NAV_ITEMS = [
@@ -273,6 +287,10 @@ class MainWindow(QMainWindow):
         self._auto_sync_timer.timeout.connect(self._run_auto_sync)
         self._apply_auto_sync_interval()
 
+        self._pending_auto_note = False
+        self._start_holiday_sync()
+        self._maybe_auto_generate_note()
+
     def _apply_auto_sync_interval(self):
         """db의 auto_check_interval_min("0"=끄기)과 demo_mode를 기준으로
         타이머를 다시 맞춘다. 설정 페이지에서 주기를 바꾸거나 데모 모드가
@@ -296,6 +314,36 @@ class MainWindow(QMainWindow):
         self._auto_sync_thread.finishedError.connect(self._on_auto_sync_error)
         self._auto_sync_thread.start()
 
+    def _maybe_auto_generate_note(self):
+        """평일 자동 알림장 생성. 데모 모드/설정 꺼짐/주말/휴일이거나
+        오늘 것이 이미 있으면 조용히 건너뛴다 — [업무] 화면의 수동
+        [오늘 알림장 만들기] 버튼은 이 조건과 무관하게 항상 그대로 쓸 수
+        있다(db.save_daily_summary()가 upsert라 나중에 수동으로 다시
+        만들어도 안전하게 덮어써진다).
+
+        기존 자동 확인 타이머(_apply_auto_sync_interval)는 기본 5분 뒤에야
+        처음 돈다 — 그대로 기다리면 자동 알림장이 너무 늦게 만들어지거나,
+        그 전에 선생님이 앱을 꺼버리면 아예 안 만들어질 수 있어서 여기서
+        _run_auto_sync()를 앱을 켠 즉시 한 번 더 호출한다."""
+        if db.get_setting("auto_note_enabled", "1") != "1":
+            return
+        if self.demo_mode:
+            return
+        today = date.today()
+        if today.weekday() >= 5:
+            return
+        if db.is_holiday(today.isoformat()):
+            return
+        if db.get_daily_summary(today.isoformat()) is not None:
+            return
+
+        self._pending_auto_note = True
+        self._run_auto_sync()
+
+    def _start_holiday_sync(self):
+        self._holiday_sync_thread = _HolidaySyncThread(self)
+        self._holiday_sync_thread.start()
+
     def _on_auto_sync_ok(self, new_message_count: int, new_task_count: int):
         db.set_setting("last_auto_check_at", datetime.now().isoformat())
 
@@ -305,12 +353,25 @@ class MainWindow(QMainWindow):
             elif self.current_page_key == "tasks":
                 self.task_list_view.refresh()
 
+        toast_parts = []
         if new_task_count > 0:
-            self.toast.show_message(f"새 업무 {new_task_count}건이 추가되었습니다")
+            toast_parts.append(f"새 업무 {new_task_count}건이 추가되었습니다")
+
+        if self._pending_auto_note:
+            self._pending_auto_note = False
+            daily_note.generate_and_save_daily_note()
+            toast_parts.append("오늘 알림장이 자동으로 만들어졌습니다")
+
+        if toast_parts:
+            self.toast.show_message(" · ".join(toast_parts))
 
     def _on_auto_sync_error(self, message: str):
         # 사용자에게는 조용히 넘어간다 — 팝업 없음, 다음 주기(타이머가
         # 계속 돌고 있으므로 자동)에 다시 시도된다. 콘솔 로그만 남긴다.
+        # 이번 시도가 자동 알림장 생성을 위한 최초 동기화였다면(pending
+        # 플래그) 그 시도도 실패한 것이므로 플래그만 내리고 넘어간다 —
+        # 수동 버튼은 여전히 그대로 쓸 수 있다.
+        self._pending_auto_note = False
         print(f"[자동 확인 오류] {message}")
 
     def _start_update_check(self):

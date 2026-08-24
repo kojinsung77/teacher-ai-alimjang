@@ -5,8 +5,6 @@
 날짜 분류는 전부 app/core/deadline_classifier.py + app/core/stats.py에
 위임한다 — 이 파일은 그 결과를 화면에 그리는 역할만 한다."""
 
-from datetime import date
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
@@ -14,8 +12,8 @@ from PySide6.QtWidgets import (
 )
 
 from .. import db
-from ..core import task_manager, stats
-from ..core.deadline_classifier import DeadlineGroup, GROUP_ORDER, GROUP_LABELS
+from ..core import task_manager, stats, daily_note
+from ..core.deadline_classifier import DeadlineGroup, GROUP_LABELS
 from ..adapters.mock_adapter import MockMessengerAdapter
 from ..adapters.coolmessenger_adapter import CoolMessengerAdapter
 from ..ai.gemini_client import GeminiKeyError
@@ -301,50 +299,9 @@ class TaskListView(QWidget):
 
     def on_make_note(self):
         """오늘 알림장 텍스트를 만들어 클립보드에 복사하고, 그 스냅샷을
-        daily_summary에 저장한다 (지난 알림장 화면이 이걸 읽어서 보여준다)."""
-        grouped = stats.group_todo_tasks()
-        completed = stats.completed_tasks()
-
-        today = date.today()
-        lines = [f"📋 {today.month}월 {today.day}일 업무 알림장", ""]
-        summary_groups = []
-        total_open = 0
-
-        for g in GROUP_ORDER:
-            rows = stats.sort_for_group(g, grouped[g])
-            total_open += len(rows)
-            if not rows:
-                continue
-            label = GROUP_LABELS[g]
-            lines.append(label)
-            items = []
-            for t in rows:
-                suffix = f" - {t['deadline']}" if t["deadline"] else ""
-                lines.append(f"• {t['title']}{suffix}")
-                items.append({"title": t["title"], "deadline": t["deadline"]})
-            lines.append("")
-            summary_groups.append({"key": g.value, "label": label, "items": items})
-
-        if completed:
-            label = "✅ 완료"
-            lines.append(label)
-            items = []
-            for t in stats.sort_completed(completed):
-                lines.append(f"• {t['title']}")
-                items.append({"title": t["title"]})
-            lines.append("")
-            summary_groups.append({"key": "completed", "label": label, "items": items})
-
-        lines.append(f"📌 현재 미처리 업무: {total_open}건")
-        note = "\n".join(lines)
-
-        QApplication.clipboard().setText(note)
-
-        db.save_daily_summary(today.isoformat(), {
-            "groups": summary_groups,
-            "total_open": total_open,
-            "total_completed": len(completed),
-            "note_text": note,
-        })
-
-        _DailyNoteResultDialog(note, self).exec()
+        daily_summary에 저장한다 (지난 알림장 화면이 이걸 읽어서 보여준다).
+        텍스트/스냅샷 생성 로직 자체는 app/core/daily_note.py에 있다 —
+        main_window.py의 평일 자동 생성도 같은 로직을 쓴다."""
+        result = daily_note.generate_and_save_daily_note()
+        QApplication.clipboard().setText(result["note_text"])
+        _DailyNoteResultDialog(result["note_text"], self).exec()
