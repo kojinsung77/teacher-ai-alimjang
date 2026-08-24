@@ -169,14 +169,62 @@ end;
   하면 RestartManager가 "아직 쓰는 중"으로 보고, 자동으로 못 닫으면
   확인창을 띄우려다 /SUPPRESSMSGBOXES에 막혀 조용히 취소되는 경우가
   실측으로 확인됐다(등록 정보는 그대로, 프로세스만 사라짐 — "지금 설치"
-  눌러도 아무 일 없다는 보고와 정확히 일치하는 증상). 설치 시작 전에
-  짧게 대기해서 부모 프로세스가 확실히 정리될 시간을 준다 — 일반
-  대화형 설치(사용자가 직접 실행)에도 똑같이 적용되지만, 설치 프로그램이
-  뜨는 데 어차피 걸리는 시간에 묻혀 체감되지 않는다. }
+  눌러도 아무 일 없다는 보고와 정확히 일치하는 증상).
+
+  v1.4.1에서 고정 Sleep(1500)으로 이 문제를 완화해뒀지만, 실사용자
+  환경의 installer_last_run.log로 재현을 확인해보니 1.5초로도 부족한
+  경우가 있었다: "RestartManager found an application using one of our
+  files" 뒤 "일부 응용 프로그램을 종료할 수 없습니다"로 조용히 롤백된
+  로그가 실제로 남았다 — 부모 프로세스 정리(임시 폴더 삭제 등)가 느린
+  컴퓨터(백신 실시간 검사 등)에서는 1.5초보다 오래 걸릴 수 있다는 뜻.
+  그래서 고정 시간 대기 대신, tasklist로 TeacherAlimjang.exe가 실제로
+  프로세스 목록에서 사라졌는지 직접 확인하면서 짧은 간격으로 반복
+  대기한다 — 뮤텍스(TeacherAlimjangRunningMutex)는 조용한 설치 직전에
+  우리 쪽에서 일부러 미리 풀어버리므로(release_install_mutex() 참고)
+  "아직 살아있다"를 신뢰성 있게 알려주는 신호가 못 되고, tasklist가
+  실제 OS 프로세스 상태를 보는 유일하게 확실한 방법이다. 이미 죽어있는
+  일반 대화형 설치(사용자가 직접 실행)에서는 첫 확인에서 곧장
+  통과하므로 체감 지연이 없다. }
+function ProcessRunning(const ExeName: String): Boolean;
+var
+  ResultCode: Integer;
+  Output: TExecOutput;
+  I: Integer;
+begin
+  Result := False;
+  if not ExecAndCaptureOutput(ExpandConstant('{sys}\tasklist.exe'),
+       '/FI "IMAGENAME eq ' + ExeName + '" /NH', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode, Output) then
+    exit;
+  for I := 0 to GetArrayLength(Output.StdOut) - 1 do
+  begin
+    if Pos(Lowercase(ExeName), Lowercase(Output.StdOut[I])) > 0 then
+    begin
+      Result := True;
+      exit;
+    end;
+  end;
+end;
+
+procedure WaitForProcessToExit(const ExeName: String; const MaxWaitMs: Integer);
+var
+  Waited: Integer;
+begin
+  Waited := 0;
+  while ProcessRunning(ExeName) and (Waited < MaxWaitMs) do
+  begin
+    Sleep(300);
+    Waited := Waited + 300;
+  end;
+end;
+
 function InitializeSetup(): Boolean;
 begin
   ClearPyiEnvVars();
-  Sleep(1500);
+  WaitForProcessToExit('{#MyAppExeName}', 15000);
+  { tasklist에서 사라진 직후에도 파일 핸들 해제까지 아주 짧은 여유를
+    한 번 더 둔다 — 공짜에 가까운 안전망. }
+  Sleep(500);
   Result := True;
 end;
 
