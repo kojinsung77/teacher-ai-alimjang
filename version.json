@@ -1,7 +1,7 @@
 {
-  "version": "1.4.0",
-  "notes": "평일(공휴일 제외)엔 앱을 켤 때 알림장을 자동으로 만들어 지난 알림장에 저장(팝업/클립보드 복사 없이 조용히 + 토스트만). 공휴일 자동 채움: data.go.kr 특일 정보 API로 연 1회 국경일을 자동 반영, 설정에서 API 키 입력 가능. 방학 등 학교 자체 휴일은 [일정] 화면에서 날짜별로 수동 지정 가능. [업무] 화면의 수동 '오늘 알림장 만들기' 버튼은 기존과 동일하게 유지.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.4.0/TeacherAlimjang_Setup_v1.4.0.exe",
-  "sha256": "0f1da6430f61561fdce7c186598c1ffc36a299b7716ff7be3a8ee07c4e6b5fe4",
+  "version": "1.4.1",
+  "notes": "메시지 본문에 링크(URL)가 있으면 [메시지] 화면 카드에 '🔗 링크 열기' 버튼이 나타나 바로 브라우저로 열 수 있습니다. '원문 보기' 창에서도 본문 안의 링크를 직접 클릭해 열 수 있도록 개선했습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.4.1/TeacherAlimjang_Setup_v1.4.1.exe",
+  "sha256": "896b95a4d6d83066d7bdbb891a31fae2e9e72155efdb0956955d632f8a1a7058",
   "release_date": "2026-08-24"
 }
