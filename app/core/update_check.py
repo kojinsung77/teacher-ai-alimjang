@@ -11,46 +11,15 @@ app/ui/main_window.py가 맡고, 사람이 직접 받을 수 있는 경로
 대비책)."""
 
 import hashlib
-import http.cookiejar
 import json
-import re
 import shutil
-import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
 from .. import config, db
 
-_DRIVE_FILE_ID_RE = re.compile(r"/file/d/([^/]+)/")
-# 큰 파일 다운로드 시 뜨는 구글 드라이브 경고 페이지의 hidden input들
-# (id, export, confirm, uuid)을 전부 긁어서 재요청에 그대로 실어 보낸다.
-# 예전에는 "confirm=토큰"이 페이지 안에 URL 형태로 그대로 노출되어 있어서
-# 그 값만 긁으면 됐지만, 지금은 <input type="hidden" name="confirm"
-# value="t"> 처럼 form 필드로만 존재하고 uuid 필드도 새로 추가되어
-# uuid 없이는 재요청이 통과하지 않는다.
-_DRIVE_HIDDEN_INPUT_RE = re.compile(
-    r'<input type="hidden" name="([^"]+)" value="([^"]*)"'
-)
-
 _SETTING_KEY_IGNORED_VERSION = "update_ignored_version"
-
-
-def drive_share_link_to_direct(url: str) -> str:
-    """구글 드라이브 개별 파일 공유 링크
-    ("https://drive.google.com/file/d/파일ID/view?usp=sharing")를
-    실제 파일 내용을 받을 수 있는 다이렉트 다운로드 URL
-    ("https://drive.google.com/uc?export=download&id=파일ID")로 바꾼다.
-    이미 다이렉트 링크거나 드라이브 공유 링크 형식이 아니면 원본을
-    그대로 돌려준다(다른 호스팅으로 바꾸더라도 이 함수가 조용히
-    통과시키므로 안전하다)."""
-    if not url:
-        return url
-    match = _DRIVE_FILE_ID_RE.search(url)
-    if not match:
-        return url
-    file_id = match.group(1)
-    return f"https://drive.google.com/uc?export=download&id={file_id}"
 
 
 def _parse_version(version: str) -> tuple:
@@ -99,8 +68,7 @@ def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
         log_update_event("UPDATE_CHECK_URL이 비어 있음")
         return None
     try:
-        direct_url = drive_share_link_to_direct(url)
-        with urllib.request.urlopen(direct_url, timeout=timeout) as resp:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
         data = json.loads(raw)
         if not isinstance(data, dict) or "version" not in data:
@@ -152,28 +120,6 @@ def _sha256_of_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def _open_drive_download(url: str, timeout: float):
-    """구글 드라이브의 uc?export=download 링크는 파일이 크면(바이러스
-    검사를 건너뛴다는) HTML 경고 페이지를 돌려주고 실제 파일은 안 준다
-    — 알려진 동작이라, 쿠키를 유지한 채 페이지에서 confirm 토큰을
-    찾아 붙여서 재요청하는 표준 우회를 쓴다. 설치 파일(수십~백MB대)이
-    거의 항상 이 경로를 타므로 이 처리가 없으면 실제로는 거의 항상
-    실패한다."""
-    cookie_jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
-    resp = opener.open(url, timeout=timeout)
-    content_type = resp.headers.get("Content-Type", "")
-    if "text/html" in content_type:
-        html = resp.read().decode("utf-8", errors="ignore")
-        fields = dict(_DRIVE_HIDDEN_INPUT_RE.findall(html))
-        if not fields.get("confirm"):
-            raise ValueError("구글 드라이브 다운로드 확인 페이지에서 필드를 찾지 못함")
-        base_url = resp.geturl().split("?")[0]
-        retry_url = f"{base_url}?{urllib.parse.urlencode(fields)}"
-        resp = opener.open(retry_url, timeout=timeout)
-    return resp
-
-
 def download_and_verify_update(info: dict, timeout: float = 30.0) -> Path | None:
     """info(version.json에서 온 dict)의 download_url을 받아 updates_dir()에
     저장하고, sha256 필드와 실제 받은 파일의 해시가 일치할 때만 그 경로를
@@ -199,9 +145,7 @@ def download_and_verify_update(info: dict, timeout: float = 30.0) -> Path | None
     dest = updates_folder / f"TeacherAlimjang_Setup_v{version}.exe"
 
     try:
-        direct_url = drive_share_link_to_direct(download_url)
-        resp = _open_drive_download(direct_url, timeout)
-        with open(dest, "wb") as f:
+        with urllib.request.urlopen(download_url, timeout=timeout) as resp, open(dest, "wb") as f:
             shutil.copyfileobj(resp, f)
 
         actual_sha256 = _sha256_of_file(dest)
