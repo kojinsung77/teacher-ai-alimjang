@@ -1,7 +1,7 @@
 {
-  "version": "1.4.1",
-  "notes": "메시지 본문에 링크(URL)가 있으면 [메시지] 화면 카드에 '🔗 링크 열기' 버튼이 나타나 바로 브라우저로 열 수 있습니다. '원문 보기' 창에서도 본문 안의 링크를 직접 클릭해 열 수 있도록 개선했습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.4.1/TeacherAlimjang_Setup_v1.4.1.exe",
-  "sha256": "896b95a4d6d83066d7bdbb891a31fae2e9e72155efdb0956955d632f8a1a7058",
-  "release_date": "2026-08-24"
+  "version": "1.4.2",
+  "notes": "자동 업데이트 설치가 진행 화면만 뜨고 실제로는 설치되지 않던 문제를 고쳤습니다. 컴퓨터에 따라 업데이트 시작 직후 앱이 완전히 종료되기 전에 설치가 시작되면서 조용히 취소되는 경우가 있었는데, 이제 설치 프로그램이 앱이 완전히 종료된 것을 직접 확인한 뒤 설치를 진행하도록 개선했습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.4.2/TeacherAlimjang_Setup_v1.4.2.exe",
+  "sha256": "bdf32ac28ded6a0315f852a96b0206820cafedd19f1cad42c3d551045c3f2701",
+  "release_date": "2026-08-25"
 }
