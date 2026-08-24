@@ -132,14 +132,17 @@ gh release create $tag $setupPath.FullName --repo "$GhOwner/$GhRepo" --title $ta
 if ($LASTEXITCODE -ne 0) { throw "gh release create 실패" }
 Write-Output "릴리스 생성 완료: https://github.com/$GhOwner/$GhRepo/releases/tag/$tag"
 
-# ---------- 6) 버전 문자열이 바뀐 파일 전부 커밋 + 푸시 ----------
-Write-Step "6/6  버전 관련 파일 커밋 + 푸시"
-# version.json만 커밋하면 1/2단계에서 로컬에 반영한 app/config.py의
-# APP_VERSION, installer/setup.iss의 MyAppVersion은 빠진 채로 남는다 —
-# 태그·릴리스·version.json은 새 버전인데 저장소 소스 코드만 이전 버전
-# 문자열을 담고 있는 불일치가 실제로 두 번(v1.2.1, v1.2.2) 발생했던
-# 문제라, 이 세 파일을 항상 함께 커밋한다.
-git -C $root add version.json app/config.py installer/setup.iss
+# ---------- 6) 버전 문자열이 바뀐 파일 + 이번 릴리스에 포함된 소스 변경 전부 커밋 + 푸시 ----------
+Write-Step "6/6  버전 관련 파일 + 소스 변경 커밋 + 푸시"
+# version.json/app/config.py/installer/setup.iss 세 파일만 커밋하던 때는
+# 1/2단계가 반영한 버전 문자열은 빠짐없이 커밋됐지만, "이번 릴리스를
+# 위해 같이 고친 다른 소스 파일"은 커밋 대상이 아니라서 빌드된 exe에는
+# 들어갔는데 정작 저장소에는 반영이 안 되는 사고가 실제로 한 번 있었다
+# (update_check.py 정리가 v1.3.3 빌드에는 포함됐지만 git에는 안 올라감).
+# git add -u로 이미 추적 중인 파일의 수정분을 전부 잡아서 같은 문제가
+# 다시 생기지 않게 한다 — 추적 안 되는 새 파일까지 끌어들이지는 않으므로
+# 무관한 스크래치 파일이 실수로 끼어들 걱정은 없다.
+git -C $root add -u
 git -C $root commit -m "release: v$Version"
 if ($LASTEXITCODE -ne 0) { throw "git commit 실패" }
 git -C $root push origin master
