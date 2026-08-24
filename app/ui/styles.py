@@ -179,20 +179,28 @@ QLabel#Toast {{
     font-weight: 600;
 }}
 
-/* ---------- 새 버전 안내 배너 (대시보드 상단) ---------- */
-QFrame#UpdateBanner {{
+/* ---------- 새 버전 안내 모달 카드 (창 우측 상단 오버레이) ---------- */
+QFrame#UpdateModal {{
     background-color: {COLORS['stat_blue_bg']};
     border: 1px solid {COLORS['stat_blue_border']};
-    border-radius: 12px;
+    border-radius: 16px;
 }}
-QLabel#UpdateBannerText {{
+QLabel#UpdateModalIcon {{
+    font-size: 18px;
+}}
+QLabel#UpdateModalTitle {{
     color: {COLORS['text_primary']};
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
 }}
-QLabel#UpdateBannerFallback {{
+QLabel#UpdateModalVersion {{
+    color: {COLORS['text_primary']};
+    font-size: 20px;
+    font-weight: 800;
+}}
+QLabel#UpdateModalDate {{
     color: {COLORS['text_secondary']};
-    font-size: 11px;
+    font-size: 12px;
 }}
 QLabel#DemoModeBadge {{
     background-color: {COLORS['stat_orange_bg']};

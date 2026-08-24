@@ -6,17 +6,16 @@
 teacher_ai_dashboard_preview.html 레퍼런스 기준: 짙은 사이드바 + 파스텔
 통계 카드 + 카드형 우선순위 목록. 날씨 관련 기능은 포함하지 않는다."""
 
-import webbrowser
 from datetime import date
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QMessageBox, QScrollArea
 )
 
-from .. import config, db
-from ..core import stats, update_check
+from .. import db
+from ..core import stats
 from .common_widgets import apply_card_shadow, build_empty_state
 from .task_card import TaskCard
 
@@ -34,15 +33,11 @@ _STAT_DEFS = [
 class DashboardView(QWidget):
     # (page_key, filter_key) -- filter_key는 "업무" 페이지로 갈 때만 의미 있고, 그 외엔 ""
     navigateRequested = Signal(str, str)
-    # [지금 설치] 클릭 — 실제 다운로드/설치 실행은 MainWindow가 담당한다
-    # (백그라운드 스레드·subprocess·앱 종료를 이 위젯이 몰라도 되게 분리).
-    installUpdateRequested = Signal()
 
     def __init__(self, demo_mode: bool = True, parent=None):
         super().__init__(parent)
         self.demo_mode = demo_mode
         self.stat_value_labels = {}
-        self._pending_update_version = ""
         self._build_ui()
         self.refresh()
 
@@ -75,10 +70,6 @@ class DashboardView(QWidget):
         self.demo_mode_badge.setObjectName("DemoModeBadge")
         self.demo_mode_badge.hide()
         root.addWidget(self.demo_mode_badge)
-
-        self.update_banner = self._build_update_banner()
-        self.update_banner.hide()
-        root.addWidget(self.update_banner)
 
         root.addLayout(self._build_hero())
 
@@ -130,94 +121,6 @@ class DashboardView(QWidget):
         hero.addWidget(date_badge, 0, Qt.AlignTop)
 
         return hero
-
-    def _build_update_banner(self) -> QFrame:
-        """새 버전 안내 배너. 평소엔 숨겨져 있다가 MainWindow가 백그라운드
-        업데이트 확인을 마치고 show_update_banner()를 호출할 때만 보인다.
-        배너가 뜨는 시점에 MainWindow가 이미 설치 파일을 백그라운드로
-        조용히 받아두기 시작하므로, [지금 설치]를 누르면 대개 곧바로
-        (또는 다운로드가 아직 안 끝났으면 끝나는 대로 자동으로) 설치가
-        진행된다. 자동 설치가 안 될 경우를 대비해 사람이 직접 받는
-        페이지(DOWNLOAD_PAGE_URL) 링크도 작게 남겨 둔다."""
-        banner = QFrame()
-        banner.setObjectName("UpdateBanner")
-        outer = QVBoxLayout(banner)
-        outer.setContentsMargins(18, 12, 14, 10)
-        outer.setSpacing(2)
-
-        row = QHBoxLayout()
-        row.setSpacing(10)
-
-        self.update_banner_label = QLabel("")
-        self.update_banner_label.setObjectName("UpdateBannerText")
-        self.update_banner_label.setWordWrap(True)
-        row.addWidget(self.update_banner_label, 1)
-
-        self.update_install_btn = QPushButton("지금 설치")
-        self.update_install_btn.setObjectName("SecondaryButton")
-        self.update_install_btn.setCursor(Qt.PointingHandCursor)
-        self.update_install_btn.clicked.connect(self.installUpdateRequested.emit)
-        row.addWidget(self.update_install_btn)
-
-        later_btn = QPushButton("나중에")
-        later_btn.setObjectName("GhostButton")
-        later_btn.setCursor(Qt.PointingHandCursor)
-        later_btn.clicked.connect(self._on_update_dismiss_clicked)
-        row.addWidget(later_btn)
-
-        close_btn = QPushButton("✕")
-        close_btn.setObjectName("ToggleButton")
-        close_btn.setCursor(Qt.PointingHandCursor)
-        close_btn.setFixedWidth(30)
-        close_btn.clicked.connect(self._on_update_dismiss_clicked)
-        row.addWidget(close_btn)
-
-        outer.addLayout(row)
-
-        self.update_fallback_label = QLabel(
-            '<a href="#" style="color:inherit;">문제가 있다면 여기서 수동으로 받으세요</a>'
-        )
-        self.update_fallback_label.setObjectName("UpdateBannerFallback")
-        self.update_fallback_label.setTextFormat(Qt.RichText)
-        self.update_fallback_label.setCursor(Qt.PointingHandCursor)
-        self.update_fallback_label.linkActivated.connect(
-            lambda _: webbrowser.open(config.DOWNLOAD_PAGE_URL)
-        )
-        outer.addWidget(self.update_fallback_label)
-
-        return banner
-
-    def show_update_banner(self, info: dict):
-        self._pending_update_version = info.get("version", "")
-        text = f"새 버전 v{self._pending_update_version}이 있습니다."
-        notes = info.get("notes", "")
-        if notes:
-            text += f" {notes}"
-        self.update_banner_label.setText(text)
-        self.update_install_btn.setText("지금 설치")
-        self.update_install_btn.setEnabled(True)
-        self.update_banner.show()
-
-    def set_update_waiting(self, waiting: bool):
-        """다운로드가 아직 안 끝난 상태에서 [지금 설치]를 눌렀을 때(또는
-        눌러서 새로 다운로드를 시작했을 때) MainWindow가 호출한다.
-        완료되면 자동으로 설치가 진행되므로, 여기서는 그 사이 상태만
-        보여준다."""
-        if waiting:
-            self.update_banner_label.setText("설치 파일을 받는 중입니다...")
-            self.update_install_btn.setEnabled(False)
-            self.update_install_btn.setText("받는 중...")
-        else:
-            self.update_install_btn.setEnabled(True)
-            self.update_install_btn.setText("지금 설치")
-            if self._pending_update_version:
-                text = f"새 버전 v{self._pending_update_version}이 있습니다."
-                self.update_banner_label.setText(text)
-
-    def _on_update_dismiss_clicked(self):
-        if self._pending_update_version:
-            update_check.set_ignored_version(self._pending_update_version)
-        self.update_banner.hide()
 
     def _build_stat_row(self) -> QWidget:
         row = QWidget()

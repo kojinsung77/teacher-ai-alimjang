@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from .. import config, db
 from ..core import autostart, stats, task_manager, update_check
 from .common_widgets import Toast
+from .update_modal import UpdateModal
 from .dashboard_view import DashboardView
 from .task_list_view import TaskListView
 from .message_list_view import MessageListView
@@ -201,9 +202,17 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.pages = {}
 
+        # 새 버전 안내 카드 — "오늘" 탭 안에 파묻혀 있던 인라인 배너 대신
+        # 창 어디에 있든(메시지/업무/설정 등 어느 탭이든) 우측 상단에
+        # 떠 있는 오버레이로 띄운다. central의 자식으로만 두고 레이아웃엔
+        # 넣지 않는다 — 위치는 resizeEvent에서 절대좌표로 직접 잡는다.
+        self.update_modal = UpdateModal(central)
+        self.update_modal.download_requested.connect(self._on_install_requested)
+        self.update_modal.dismiss_requested.connect(self._on_update_dismiss_clicked)
+        self.update_modal.closed.connect(self.update_modal.hide)
+
         self.dashboard_view = DashboardView(demo_mode=self.demo_mode)
         self.dashboard_view.navigateRequested.connect(self.switch_page)
-        self.dashboard_view.installUpdateRequested.connect(self._on_install_requested)
         self._add_page("today", self.dashboard_view)
 
         self.task_list_view = TaskListView(demo_mode=self.demo_mode)
@@ -326,10 +335,11 @@ class MainWindow(QMainWindow):
         if update_check.is_version_ignored(version):
             return
         self._pending_update_info = info
-        self.dashboard_view.show_update_banner(info)
-        # 배너가 뜨는 시점에 사용자가 아무것도 안 눌러도 미리 조용히
-        # 받아 둔다 — [지금 설치]를 눌렀을 때 대부분 곧바로 설치가
-        # 시작되도록.
+        self.update_modal.show_update(info)
+        self._position_update_modal()
+        # 카드가 뜨는 시점에 사용자가 아무것도 안 눌러도 미리 조용히
+        # 받아 둔다 — [업데이트 다운로드]를 눌렀을 때 대부분 곧바로
+        # 설치가 시작되도록.
         self._start_update_download(info)
 
     def _start_update_download(self, info: dict):
@@ -345,27 +355,28 @@ class MainWindow(QMainWindow):
         if not self._install_after_download:
             return
         self._install_after_download = False
-        self.dashboard_view.set_update_waiting(False)
+        self.update_modal.set_waiting(False)
         if path is not None:
             self._run_silent_install(path)
         else:
-            # 해시 불일치·네트워크 오류 등 — 조용히 원래 배너 상태로
-            # 돌아간다(에러 팝업 없음, [나중에]로 넘어간 것과 동일하게
-            # 취급, 사용자는 대체 링크로 수동 설치 가능). 왜 실패했는지는
-            # download_and_verify_update() 내부에서 이미 파일을 지우고
-            # 조용히 None만 돌려주므로 여기서 원인까지는 알 수 없지만,
-            # 적어도 "이 시점에 다운로드가 실패했다"는 사실 자체는 남긴다.
+            # 해시 불일치·네트워크 오류 등 — 조용히 원래 카드 상태로
+            # 돌아간다(에러 팝업 없음, [다시 안보기]로 넘어간 것과 동일하게
+            # 취급하지는 않고 그냥 버튼만 원상복구, 사용자는 대체 링크로
+            # 수동 설치 가능). 왜 실패했는지는 download_and_verify_update()
+            # 내부에서 이미 파일을 지우고 조용히 None만 돌려주므로 여기서
+            # 원인까지는 알 수 없지만, 적어도 "이 시점에 다운로드가
+            # 실패했다"는 사실 자체는 남긴다.
             update_check.log_update_event(
-                "[지금 설치] 대기 중 다운로드 실패 — 배너를 원래 상태로 되돌림"
+                "[업데이트 다운로드] 대기 중 다운로드 실패 — 카드를 원래 상태로 되돌림"
             )
 
     def _on_install_requested(self):
-        """대시보드 배너의 [지금 설치] 클릭. 이미 검증까지 끝난 파일이
-        준비돼 있으면 곧바로 설치하고, 아직이면(다운로드 중이거나 이전
-        시도가 실패해서 대기 중인 파일이 없으면) 대기 상태를 보여주고
-        완료되는 대로 자동으로 이어서 설치한다.
+        """새 버전 안내 카드의 [업데이트 다운로드] 클릭. 이미 검증까지
+        끝난 파일이 준비돼 있으면 곧바로 설치하고, 아직이면(다운로드
+        중이거나 이전 시도가 실패해서 대기 중인 파일이 없으면) 대기
+        상태를 보여주고 완료되는 대로 자동으로 이어서 설치한다.
 
-        클릭했는데 아무 설치도 안 되고 배너/앱만 조용히 사라지는 문제가
+        클릭했는데 아무 설치도 안 되고 카드/앱만 조용히 사라지는 문제가
         실제로 보고된 적이 있다 — 재현은 못 했지만(직접 subprocess.Popen
         호출은 정상 동작 확인됨), 가장 유력한 원인은 클릭 시점에
         _pending_update_info가 가리키는 버전이 그 사이 서버에서
@@ -374,24 +385,33 @@ class MainWindow(QMainWindow):
         길로 갔는지 로그로 남겨서, 다음에 재발하면 update_debug.log만
         봐도 바로 원인을 알 수 있게 한다."""
         if self._verified_installer_path is not None and self._verified_installer_path.exists():
-            update_check.log_update_event("[지금 설치] 클릭 — 이미 검증된 파일로 즉시 설치")
+            update_check.log_update_event("[업데이트 다운로드] 클릭 — 이미 검증된 파일로 즉시 설치")
             self._run_silent_install(self._verified_installer_path)
             return
 
         self._install_after_download = True
-        self.dashboard_view.set_update_waiting(True)
+        self.update_modal.set_waiting(True)
         if self._update_download_thread is None or not self._update_download_thread.isRunning():
             if self._pending_update_info is not None:
                 update_check.log_update_event(
-                    f"[지금 설치] 클릭 — 다운로드 대기 상태로 전환, 버전={self._pending_update_info.get('version')}"
+                    f"[업데이트 다운로드] 클릭 — 다운로드 대기 상태로 전환, 버전={self._pending_update_info.get('version')}"
                 )
                 self._start_update_download(self._pending_update_info)
             else:
                 update_check.log_update_event(
-                    "[지금 설치] 클릭 — _pending_update_info가 없어 다운로드를 시작할 수 없음"
+                    "[업데이트 다운로드] 클릭 — _pending_update_info가 없어 다운로드를 시작할 수 없음"
                 )
         else:
-            update_check.log_update_event("[지금 설치] 클릭 — 이미 진행 중인 다운로드를 기다림")
+            update_check.log_update_event("[업데이트 다운로드] 클릭 — 이미 진행 중인 다운로드를 기다림")
+
+    def _on_update_dismiss_clicked(self):
+        """새 버전 안내 카드의 [다시 안보기] 클릭 — 이 버전은 무시 처리해서
+        다음 확인부터 다시 안 뜨게 한다(더 새 버전이 나오면 그때는 다시
+        뜬다, update_check.is_version_ignored() 참고). ✕(닫기)와 달리
+        여기서만 무시 처리를 한다."""
+        if self._pending_update_info is not None:
+            update_check.set_ignored_version(self._pending_update_info.get("version", ""))
+        self.update_modal.hide()
 
     def _run_silent_install(self, installer_path):
         """미리 받아 SHA256까지 검증해 둔 설치 파일을 실행하고, 우리 앱은
@@ -530,6 +550,27 @@ class MainWindow(QMainWindow):
         frame_geo = self.frameGeometry()
         frame_geo.moveCenter(available.center())
         self.move(frame_geo.topLeft())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # __init__ 초반의 _resize_to_screen() 호출 시점엔 update_modal이
+        # 아직 안 만들어져 있으므로(centralWidget 구성 전) 방어적으로
+        # getattr로 확인한다.
+        if getattr(self, "update_modal", None) is not None:
+            self._position_update_modal()
+
+    def _position_update_modal(self):
+        """새 버전 안내 카드를 창 우측 상단(여백 24px)에 절대좌표로 둔다
+        — 레이아웃에 들어있지 않으므로 창 크기가 바뀔 때마다(resizeEvent)
+        또는 카드가 새로 뜰 때(show_update 직후) 직접 다시 계산해야 한다."""
+        central = self.centralWidget()
+        if central is None:
+            return
+        self.update_modal.adjustSize()
+        margin = 24
+        x = central.width() - self.update_modal.width() - margin
+        self.update_modal.move(max(x, 0), margin)
+        self.update_modal.raise_()
 
     def _add_page(self, key: str, widget: QWidget):
         self.pages[key] = widget

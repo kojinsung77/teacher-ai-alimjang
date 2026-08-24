@@ -106,7 +106,7 @@ Write-Output "SHA256: $hash"
 $downloadUrl = "https://github.com/$GhOwner/$GhRepo/releases/download/v$Version/$($setupPath.Name)"
 Write-Output "download_url: $downloadUrl"
 
-python (Join-Path $root "scripts\bump_version_json.py") $Version $hash $downloadUrl $Notes
+python (Join-Path $root "scripts\bump_version_json.py") $Version $hash $downloadUrl $Notes $releaseDate
 if ($LASTEXITCODE -ne 0) { throw "version.json 갱신 실패 (exit $LASTEXITCODE)" }
 
 if ($SkipPublish) {
