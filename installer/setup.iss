@@ -22,7 +22,7 @@
 
 #define MyAppName "교사업무 AI 알림장"
 ; app/config.py의 APP_VERSION과 항상 맞춰서 올린다.
-#define MyAppVersion "1.3.4"
+#define MyAppVersion "1.3.5"
 #define MyAppPublisher "Gosussam"
 #define MyAppExeName "TeacherAlimjang.exe"
 #define MyAppId "{{0D2E7F2C-B6D4-45CF-9D4B-79DAAAF99FAB}"
@@ -109,6 +109,27 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 var
   UninstallDeleteDataChecked: Boolean;
   UninstallLogMemo: TNewMemo;
+
+{ ---------- -1. 앱 자체 업데이트 직후 실행될 때의 파일 잠금 경합 대비 ---------- }
+{ 앱의 [지금 설치]가 이 설치 프로그램을 subprocess.Popen()으로 띄운 직후
+  자기 자신은 곧바로 self.close()로 종료하는데, PyInstaller onefile
+  부트로더는 실제로 프로세스가 두 개(부모 런처 + 실제로 돌아가는 자식)라
+  자식 쪽 Qt 창이 닫혀도 부모 프로세스가 TeacherAlimjang.exe 이미지에
+  대한 핸들을 완전히 놓기까지 짧은 시간이 더 걸릴 수 있다. 우리 코드는
+  자식(Qt 창)의 종료만 요청할 뿐 부모 프로세스가 완전히 죽었는지 기다릴
+  방법이 없다 — 그 사이에 이 설치 프로그램이 곧바로 파일을 덮어쓰려
+  하면 RestartManager가 "아직 쓰는 중"으로 보고, 자동으로 못 닫으면
+  확인창을 띄우려다 /SUPPRESSMSGBOXES에 막혀 조용히 취소되는 경우가
+  실측으로 확인됐다(등록 정보는 그대로, 프로세스만 사라짐 — "지금 설치"
+  눌러도 아무 일 없다는 보고와 정확히 일치하는 증상). 설치 시작 전에
+  짧게 대기해서 부모 프로세스가 확실히 정리될 시간을 준다 — 일반
+  대화형 설치(사용자가 직접 실행)에도 똑같이 적용되지만, 설치 프로그램이
+  뜨는 데 어차피 걸리는 시간에 묻혀 체감되지 않는다. }
+function InitializeSetup(): Boolean;
+begin
+  Sleep(1500);
+  Result := True;
+end;
 
 { ---------- 0. 조용한 설치 뒤 앱 자동 재시작 ---------- }
 { Run 섹션의 postinstall 플래그(skipifsilent 없음)만으로는 앱 자체

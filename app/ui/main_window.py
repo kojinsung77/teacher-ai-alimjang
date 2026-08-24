@@ -425,26 +425,44 @@ class MainWindow(QMainWindow):
         여전히 팝업을 띄우지 않는다는 원칙은 그대로 유지).
 
         Popen 호출 자체가 성공해도 Setup.exe가 그 직후에 조용히 죽는
-        경우가 실제로 있다는 걸 이번에 확인했다 — 예를 들어
-        AppMutex(TeacherAlimjangRunningMutex)를 다른 프로세스가 아직
-        쥐고 있으면 Setup은 "이미 실행 중" 확인창을 띄우려다
-        /SUPPRESSMSGBOXES 때문에 자동으로 취소 처리되고 EAbort로 그냥
-        종료해버린다 — 종료 코드도 우리 쪽에서 확인 안 하고, 예외도 안
-        나고, 사용자 화면엔 배너/앱이 사라지는 것만 보인다("지금 설치"
-        눌러도 아무 일 없다는 보고와 정확히 일치하는 증상). Popen은
-        논블로킹이라 기본적으로 이 실패를 알 도리가 없으므로, 아주 짧게
-        (0.8초) 기다렸다가 그새 죽었는지만 확인해서 로그를 남긴다 —
-        정상 설치는 이 시점에 이미 파일 압축 해제 중이라 절대 이만큼
-        빨리 안 끝나므로, 체감 속도에는 영향이 없다."""
+        경우가 실제로 있다는 걸 이번에 확인했다. 재현 실험으로 두 가지
+        경로를 확인했다: (1) AppMutex(TeacherAlimjangRunningMutex)를 다른
+        프로세스가 아직 쥐고 있으면 Setup은 "이미 실행 중" 확인창을
+        띄우려다 /SUPPRESSMSGBOXES 때문에 자동으로 취소 처리되고 EAbort로
+        종료한다. (2) 더 미묘하게는, 우리 앱이 self.close()를 부르는
+        시점과 PyInstaller onefile 부모 런처 프로세스가 실제로 완전히
+        죽어 TeacherAlimjang.exe 이미지 핸들을 놓는 시점 사이에 시차가
+        있어서, Setup이 그 사이에 파일을 덮어쓰려 하면 RestartManager가
+        "아직 쓰는 중"으로 보고 마찬가지로 조용히 취소될 수 있다(실제
+        재현: 방금 배포된 실제 v1.3.2 설치본에서 [지금 설치]를 눌렀을 때
+        이 경로로 실패, 반면 같은 파일을 우리 앱이 안 떠 있는 상태에서
+        수동으로 실행하면 항상 성공). 두 경우 다 종료 코드를 우리 쪽에서
+        확인 안 하면 예외도 안 나고, 사용자 화면엔 배너/앱이 사라지는
+        것만 보인다("지금 설치" 눌러도 아무 일 없다는 보고와 정확히
+        일치). installer/setup.iss의 InitializeSetup()에 짧은 대기를
+        추가해 (2)를 완화했지만, 그래도 실패할 수 있는 경로들이라 Setup
+        자체의 /LOG 출력을 우리 진단 폴더에 남겨서 다음에 재발하면 굳이
+        재현하지 않아도 Inno Setup이 정확히 어느 단계에서 멈췄는지 바로
+        보이게 한다. Popen은 논블로킹이라 기본적으로 이 실패를 알 도리가
+        없으므로, 아주 짧게(0.8초) 기다렸다가 그새 죽었는지만 확인해서
+        로그를 남긴다 — 정상 설치는 이 시점에 이미 파일 압축 해제
+        중이라 절대 이만큼 빨리 안 끝나므로, 체감 속도에는 영향이
+        없다."""
         try:
             self._auto_sync_timer.stop()
 
             from ..core import single_instance
             single_instance.release_install_mutex()
 
-            update_check.log_update_event(f"[설치] 실행 시도 경로={installer_path}")
+            installer_log_path = config.app_data_dir() / "installer_last_run.log"
+            update_check.log_update_event(
+                f"[설치] 실행 시도 경로={installer_path} 로그={installer_log_path}"
+            )
             proc = subprocess.Popen(
-                [str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                [
+                    str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+                    f"/LOG={installer_log_path}",
+                ],
                 close_fds=True,
                 creationflags=subprocess.CREATE_BREAKAWAY_FROM_JOB,
             )
