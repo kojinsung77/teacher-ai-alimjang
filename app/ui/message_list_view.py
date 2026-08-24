@@ -4,10 +4,14 @@
 REFERENCE/IGNORE/분석 전), 연결된 업무 보기를 담당한다. 업무 추출/완료
 처리는 다루지 않는다(그건 '업무' 화면의 역할)."""
 
+import html
+import re
+import webbrowser
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
-    QFrame, QLineEdit, QMessageBox
+    QFrame, QLineEdit, QMessageBox, QDialog
 )
 
 from .. import db
@@ -26,6 +30,84 @@ _STATUS_BADGE = {
     "IGNORE": ("IGNORE", "MsgBadgeIgnore"),
     None: ("분석 전", "MsgBadgePending"),
 }
+
+# 링크가 이만큼을 넘으면 한꺼번에 새 탭으로 열지 않고 "원문 보기"로 안내한다
+# (탭이 우르르 열려서 오히려 혼란스러워지는 걸 막기 위함).
+_MAX_AUTO_OPEN_LINKS = 5
+
+_URL_RE = re.compile(r"https?://\S+")
+# URL 뒤에 문장이 공백 없이 바로 이어붙는 경우까지는 다루지 않는다 — 공백/개행
+# 기준으로 끊고, 문장 끝에 흔히 붙는 문장부호만 잘라내는 정도로 충분하다.
+_URL_TRAILING_PUNCT = ".,;:!?)]}'\"”’》』】〉"
+
+
+def _find_urls(text: str) -> list[str]:
+    """본문에서 http(s):// 로 시작하는 URL을 전부 찾아 반환한다."""
+    urls = []
+    for m in _URL_RE.finditer(text or ""):
+        url = m.group(0).rstrip(_URL_TRAILING_PUNCT)
+        if url:
+            urls.append(url)
+    return urls
+
+
+def _body_to_html(text: str) -> str:
+    """본문 텍스트를 안전한 HTML로 변환한다: escape → 개행을 <br>로 → URL을
+    <a>로 감싸기. 이 순서를 지켜야 이스케이프된 & 등이 다시 깨지지 않는다."""
+    escaped = html.escape(text or "")
+    urls = _find_urls(escaped)
+    body_html = escaped.replace("\n", "<br>")
+    for url in sorted(set(urls), key=len, reverse=True):
+        body_html = body_html.replace(url, f'<a href="{url}">{url}</a>')
+    return body_html
+
+
+class _MessageOriginalDialog(QDialog):
+    """"원문 보기" 창. QMessageBox 대신 직접 만든 이유는 _DailyNoteResultDialog와
+    동일: QMessageBox는 본문에 스크롤 영역이 없어서 본문이 길면 창이 화면 밖으로
+    밀려나 확인 버튼이 안 눌리는 경우가 있다. 여기서는 본문만 QScrollArea에 넣고
+    확인 버튼은 항상 스크롤 영역 밖 하단에 고정한다."""
+
+    def __init__(self, row, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("원문 메시지")
+        self.setMinimumWidth(480)
+        self.setMaximumHeight(640)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 22)
+        root.setSpacing(14)
+
+        title = QLabel(row["title"] or "(제목 없음)")
+        title.setObjectName("PageTitle")
+        title.setWordWrap(True)
+        root.addWidget(title)
+
+        meta_bits = [row["sender"] or "(발신자 없음)"]
+        if row["department"]:
+            meta_bits.append(row["department"])
+        meta_label = QLabel("  ·  ".join(meta_bits))
+        meta_label.setObjectName("Muted")
+        root.addWidget(meta_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        body_label = QLabel(_body_to_html(row["body"] or ""))
+        body_label.setTextFormat(Qt.RichText)
+        body_label.setWordWrap(True)
+        body_label.setOpenExternalLinks(True)
+        scroll.setWidget(body_label)
+        root.addWidget(scroll, 1)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        ok_btn = QPushButton("확인")
+        ok_btn.setObjectName("PrimaryButton")
+        ok_btn.setCursor(Qt.PointingHandCursor)
+        ok_btn.clicked.connect(self.accept)
+        btn_row.addWidget(ok_btn)
+        root.addLayout(btn_row)
 
 
 class MessageListView(QWidget):
@@ -172,14 +254,38 @@ class MessageListView(QWidget):
             linked_btn.clicked.connect(lambda: self._show_linked_tasks(row["message_id"]))
             btn_row.addWidget(linked_btn)
 
+        urls = _find_urls(row["body"])
+        if urls:
+            label = "🔗 링크 열기" if len(urls) == 1 else f"🔗 링크 열기 ({len(urls)}개)"
+            link_btn = QPushButton(label)
+            link_btn.setObjectName("GhostButton")
+            link_btn.setCursor(Qt.PointingHandCursor)
+            link_btn.clicked.connect(lambda checked=False, u=urls, r=row: self._open_links(u, r))
+            btn_row.addWidget(link_btn)
+
         btn_row.addStretch(1)
         v.addLayout(btn_row)
 
         return card
 
+    def _open_links(self, urls: list[str], row):
+        if len(urls) == 1:
+            webbrowser.open(urls[0])
+            return
+        if len(urls) > _MAX_AUTO_OPEN_LINKS:
+            QMessageBox.information(
+                self, "링크가 너무 많습니다",
+                f"이 메시지에 링크가 {len(urls)}개 있습니다.\n"
+                "한꺼번에 열면 혼란스러울 수 있어 '원문 보기'를 대신 엽니다.\n"
+                "본문 안의 링크를 하나씩 눌러주세요."
+            )
+            self._show_original(row)
+            return
+        for url in urls:
+            webbrowser.open(url)
+
     def _show_original(self, row):
-        text = f"[{row['sender']} · {row['department']}]\n{row['title']}\n\n{row['body']}"
-        QMessageBox.information(self, "원문 메시지", text)
+        _MessageOriginalDialog(row, self).exec()
 
     def _show_linked_tasks(self, message_id: str):
         tasks = db.tasks_for_message(message_id)
