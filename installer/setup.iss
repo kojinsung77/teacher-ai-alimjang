@@ -22,7 +22,7 @@
 
 #define MyAppName "교사업무 AI 알림장"
 ; app/config.py의 APP_VERSION과 항상 맞춰서 올린다.
-#define MyAppVersion "1.4.2"
+#define MyAppVersion "1.5.0"
 #define MyAppPublisher "Gosussam"
 #define MyAppExeName "TeacherAlimjang.exe"
 #define MyAppId "{{0D2E7F2C-B6D4-45CF-9D4B-79DAAAF99FAB}"

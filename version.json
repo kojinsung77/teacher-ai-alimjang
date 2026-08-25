@@ -1,7 +1,7 @@
 {
-  "version": "1.4.2",
-  "notes": "자동 업데이트 설치가 진행 화면만 뜨고 실제로는 설치되지 않던 문제를 고쳤습니다. 컴퓨터에 따라 업데이트 시작 직후 앱이 완전히 종료되기 전에 설치가 시작되면서 조용히 취소되는 경우가 있었는데, 이제 설치 프로그램이 앱이 완전히 종료된 것을 직접 확인한 뒤 설치를 진행하도록 개선했습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.4.2/TeacherAlimjang_Setup_v1.4.2.exe",
-  "sha256": "bdf32ac28ded6a0315f852a96b0206820cafedd19f1cad42c3d551045c3f2701",
+  "version": "1.5.0",
+  "notes": "학사일정 자동 채움을 국경일만 알려주던 공공데이터포털 API에서 NEIS(나이스 교육정보 개방 포털) 학사일정 API로 교체했습니다. 학교별 방학ㆍ재량휴업일ㆍ수요/금요대체일은 물론 모의고사 같은 행사까지 자동으로 반영되며, [일정] 화면에서 등교하지 않는 날과 행사가 있는 날을 구분해서 보여줍니다. 설정 화면에서 다른 학교 코드로 바꿔 쓸 수도 있습니다. 그 외 자동 업데이트 설치가 느리다는 보고의 원인을 좁히기 위한 진단 로그를 추가했습니다(동작 변화 없음).",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.5.0/TeacherAlimjang_Setup_v1.5.0.exe",
+  "sha256": "e6e3b1e654378fa3d4179adae2c04a086234665347ec2ea50550835e55dff6a3",
   "release_date": "2026-08-25"
 }
