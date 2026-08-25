@@ -11,8 +11,11 @@ API는 시도교육청코드+학교코드만 넣으면 그 학교의 휴업일�
 통째로 내려줘서 이 한계를 없앤다.
 
 인증키는 Gemini API 키(app/ai/gemini_client.py)와 동일한 방식으로 이 PC의
-Windows 자격 증명 관리자(keyring)에만 저장한다 — 이 저장소가 GitHub에
-공개돼 있어 app/config.py에 평문으로 넣으면 그대로 노출되기 때문이다.
+Windows 자격 증명 관리자(keyring)에 저장하는 것을 우선한다. 다만 이 앱은
+당분간 전주중앙여자고등학교 내부에서만 쓰기로 결정했으므로(자세한 내용은
+프로젝트 루트 CLAUDE.md "배포 범위" 참고), keyring에 값이 없는 새 설치에서는
+아래 _DEFAULT_API_KEY(실제 NEIS 인증키가 하드코딩돼 있음)로 대체한다 —
+다른 학교로 공개 배포하기로 결정이 바뀌면 이 기본값부터 제거해야 한다.
 시도교육청코드/학교코드는 API 키와 달리 민감하지 않으므로 settings
 테이블(key-value)에 평문으로 둔다 — 다른 학교 선생님도 이 앱을 쓸 수
 있으므로 기본값(전주중앙여자고등학교)만 두고 설정 화면에서 자기 학교
@@ -56,6 +59,12 @@ _SETTING_KEY_SCHOOL_CODE = "neis_school_code"
 _DEFAULT_ATPT_CODE = "P10"
 _DEFAULT_SCHOOL_CODE = "8321103"
 
+# 2026-08-25: 이 앱을 당분간 전주중앙여자고등학교 내부에서만 쓰기로
+# 결정했으므로, NEIS 인증키도 시도교육청코드/학교코드와 같은 방식으로
+# 기본값을 넣어둔다 — 자세한 배경/주의사항은 프로젝트 루트 CLAUDE.md의
+# "배포 범위" 항목 참고.
+_DEFAULT_API_KEY = "82a9e5d7e9574a698489010d5a2639b6"
+
 # NEIS SBTR_DD_SC_NM(수업공제일구분명)이 이 값일 때만 "등교는 하지만
 # 행사가 있는 날"이다. 그 외 값은 전부 "등교하지 않는 날"로 취급한다.
 _ATTEND_SBTR_VALUE = "해당없음"
@@ -66,7 +75,7 @@ def save_api_key(key: str):
 
 
 def load_api_key() -> str | None:
-    return keyring.get_password(config.KEYRING_SERVICE, _KEYRING_USERNAME)
+    return keyring.get_password(config.KEYRING_SERVICE, _KEYRING_USERNAME) or _DEFAULT_API_KEY
 
 
 def get_atpt_code() -> str:
