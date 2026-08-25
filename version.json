@@ -1,7 +1,7 @@
 {
-  "version": "1.6.0",
-  "notes": "일반 설정의 '학사일정 자동 채움' 섹션에 [연결 테스트] 버튼을 추가했습니다. 인증키ㆍ시도교육청코드ㆍ학교코드를 입력한 뒤 저장 전에 바로 눌러서 실제로 NEIS에 연결되는지, 학사일정이 몇 건 확인되는지 그 자리에서 확인할 수 있습니다. 아울러 잘못된 인증키를 넣어도 '성공'으로 잘못 표시되던 내부 문제를 함께 고쳤습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.6.0/TeacherAlimjang_Setup_v1.6.0.exe",
-  "sha256": "b135f558f31d0ba77b1913e9a2ffa36736c69f60d4d56728d528f4580dbf95ae",
+  "version": "1.7.0",
+  "notes": "[일정] 화면 캘린더 아래에 '이번 달 학사일정' 목록을 추가했습니다. 날짜 칸 색깔만으로는 무슨 일정인지 알기 어려웠던 걸 보완해서, 이번 달 방학ㆍ공휴일ㆍ모의고사 같은 학사일정을 날짜순으로 한눈에 볼 수 있습니다. 월 이동 시 목록도 함께 갱신됩니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.7.0/TeacherAlimjang_Setup_v1.7.0.exe",
+  "sha256": "356044a4160cdf6c5fd68de1fde0442b381f628aa7be51314fd1775d3a9311c3",
   "release_date": "2026-08-25"
 }
