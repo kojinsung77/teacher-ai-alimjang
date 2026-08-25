@@ -71,6 +71,10 @@ def fetch_latest_version_info(timeout: float = 4.0) -> dict | None:
     if not url:
         log_update_event("[확인] UPDATE_CHECK_URL이 비어 있음")
         return None
+    # raw.githubusercontent.com이나 학교 네트워크 프록시가 이전
+    # version.json을 캐시해서 돌려줄 가능성을 막기 위해 매번 다른
+    # 타임스탬프를 쿼리 파라미터로 붙인다.
+    url = f"{url}{'&' if '?' in url else '?'}t={int(time.time())}"
     log_update_event(f"[확인] 시작 url={url}")
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:

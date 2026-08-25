@@ -32,6 +32,10 @@ COLORS = {
     "later": "#9AA5B5",
     "unknown": "#A78BFA",
     "holiday_bg": "#EDEFF4",
+    # 등교는 하지만 행사가 있는 날(모의고사, 리더십캠프 등) — 휴일(회색)과
+    # 시각적으로 구분되도록 보라 계열을 쓴다.
+    "event_bg": "#F1EDFC",
+    "event_accent": "#8B5CF6",
     "success": "#3D986B",
     "success_bg": "#F0FAF5",
     # 파스텔 스탯 카드
@@ -472,6 +476,11 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
 QLabel#Muted {{
     color: {COLORS['text_secondary']};
     font-size: 12px;
+}}
+QLabel#EventLabel {{
+    color: {COLORS['event_accent']};
+    font-size: 12px;
+    font-weight: 700;
 }}
 QLabel#TaskTitle {{
     font-size: 15px;

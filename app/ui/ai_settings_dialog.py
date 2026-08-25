@@ -132,48 +132,77 @@ class _SettingsFormMixin:
         v.addWidget(self.auto_note_check)
 
         v.addSpacing(4)
-        holiday_key_label = QLabel("공휴일 자동 채움 API 키 (선택)")
-        holiday_key_label.setObjectName("FormLabel")
-        v.addWidget(holiday_key_label)
+        neis_section_label = QLabel("학사일정 자동 채움 (선택)")
+        neis_section_label.setObjectName("FormLabel")
+        v.addWidget(neis_section_label)
 
-        holiday_key_row = QHBoxLayout()
-        self.holiday_key_input = QLineEdit()
-        self.holiday_key_input.setEchoMode(QLineEdit.Password)
-        self.holiday_key_input.setPlaceholderText("공공데이터포털 특일 정보 서비스키")
-        existing_holiday_key = holidays_sync.load_service_key()
-        if existing_holiday_key:
-            self.holiday_key_input.setText(existing_holiday_key)
-        self.holiday_key_input.deselect()
-        holiday_key_row.addWidget(self.holiday_key_input, 1)
+        neis_key_row = QHBoxLayout()
+        self.neis_key_input = QLineEdit()
+        self.neis_key_input.setEchoMode(QLineEdit.Password)
+        self.neis_key_input.setPlaceholderText("NEIS Open API 인증키")
+        existing_neis_key = holidays_sync.load_api_key()
+        if existing_neis_key:
+            self.neis_key_input.setText(existing_neis_key)
+        self.neis_key_input.deselect()
+        neis_key_row.addWidget(self.neis_key_input, 1)
 
-        self.holiday_key_toggle_btn = QPushButton("보기")
-        self.holiday_key_toggle_btn.setObjectName("ToggleButton")
-        self.holiday_key_toggle_btn.setCursor(Qt.PointingHandCursor)
-        self.holiday_key_toggle_btn.clicked.connect(self.on_toggle_holiday_key_visibility)
-        holiday_key_row.addWidget(self.holiday_key_toggle_btn)
-        v.addLayout(holiday_key_row)
+        self.neis_key_toggle_btn = QPushButton("보기")
+        self.neis_key_toggle_btn.setObjectName("ToggleButton")
+        self.neis_key_toggle_btn.setCursor(Qt.PointingHandCursor)
+        self.neis_key_toggle_btn.clicked.connect(self.on_toggle_neis_key_visibility)
+        neis_key_row.addWidget(self.neis_key_toggle_btn)
+        v.addLayout(neis_key_row)
 
-        holiday_key_desc = QLabel(
-            "국경일에는 자동 알림장을 만들지 않도록 국가 공휴일을 자동으로\n"
-            "표시합니다. 비워두면 이 자동 채움만 꺼지고, [일정] 화면에서 직접\n"
-            "휴일을 지정할 수 있습니다."
+        neis_code_row = QHBoxLayout()
+        neis_code_row.setSpacing(8)
+
+        atpt_col = QVBoxLayout()
+        atpt_label = QLabel("시도교육청코드")
+        atpt_label.setObjectName("Muted")
+        atpt_col.addWidget(atpt_label)
+        self.neis_atpt_input = QLineEdit()
+        self.neis_atpt_input.setText(holidays_sync.get_atpt_code())
+        self.neis_atpt_input.setPlaceholderText("예: P10")
+        atpt_col.addWidget(self.neis_atpt_input)
+        neis_code_row.addLayout(atpt_col, 1)
+
+        school_col = QVBoxLayout()
+        school_label = QLabel("학교코드")
+        school_label.setObjectName("Muted")
+        school_col.addWidget(school_label)
+        self.neis_school_input = QLineEdit()
+        self.neis_school_input.setText(holidays_sync.get_school_code())
+        self.neis_school_input.setPlaceholderText("예: 8321103")
+        school_col.addWidget(self.neis_school_input)
+        neis_code_row.addLayout(school_col, 1)
+
+        v.addLayout(neis_code_row)
+
+        neis_desc = QLabel(
+            "방학·재량휴업일·수요/금요대체일 같은 학교 자체 일정과 모의고사·\n"
+            "행사 일정을 NEIS(나이스 교육정보 개방 포털)에서 자동으로 가져와\n"
+            "[일정] 화면에 표시하고, 등교하지 않는 날에는 자동 알림장을 만들지\n"
+            "않습니다. 기본값은 전주중앙여자고등학교이며, 다른 학교는 위\n"
+            "코드를 해당 학교 것으로 바꾸면 됩니다(NEIS Open API 홈페이지의\n"
+            "학교 검색에서 확인 가능). 인증키를 비워두면 이 자동 채움만\n"
+            "꺼지고, [일정] 화면에서 직접 휴일을 지정할 수 있습니다."
         )
-        holiday_key_desc.setObjectName("Muted")
-        holiday_key_desc.setWordWrap(True)
-        v.addWidget(holiday_key_desc)
+        neis_desc.setObjectName("Muted")
+        neis_desc.setWordWrap(True)
+        v.addWidget(neis_desc)
 
         return box
 
     def _on_autostart_toggled(self, checked: bool):
         self.autostart_hide_check.setEnabled(checked)
 
-    def on_toggle_holiday_key_visibility(self):
-        if self.holiday_key_input.echoMode() == QLineEdit.Password:
-            self.holiday_key_input.setEchoMode(QLineEdit.Normal)
-            self.holiday_key_toggle_btn.setText("숨기기")
+    def on_toggle_neis_key_visibility(self):
+        if self.neis_key_input.echoMode() == QLineEdit.Password:
+            self.neis_key_input.setEchoMode(QLineEdit.Normal)
+            self.neis_key_toggle_btn.setText("숨기기")
         else:
-            self.holiday_key_input.setEchoMode(QLineEdit.Password)
-            self.holiday_key_toggle_btn.setText("보기")
+            self.neis_key_input.setEchoMode(QLineEdit.Password)
+            self.neis_key_toggle_btn.setText("보기")
 
     def _build_gemini_section(self, root: QVBoxLayout):
         """Gemini AI 설정 본문만 root 레이아웃에 채운다: 분석 기간/AI
@@ -356,9 +385,16 @@ class _SettingsFormMixin:
             "auto_note_enabled",
             "1" if self.auto_note_check.isChecked() else "0",
         )
-        holiday_key = self.holiday_key_input.text().strip()
-        if holiday_key:
-            holidays_sync.save_service_key(holiday_key)
+        neis_key = self.neis_key_input.text().strip()
+        if neis_key:
+            holidays_sync.save_api_key(neis_key)
+
+        atpt_code = self.neis_atpt_input.text().strip()
+        school_code = self.neis_school_input.text().strip()
+        if atpt_code and school_code and (atpt_code, school_code) != (
+            holidays_sync.get_atpt_code(), holidays_sync.get_school_code()
+        ):
+            holidays_sync.set_school(atpt_code, school_code)
 
     def _persist_gemini_settings(self):
         key = self.key_input.text().strip()

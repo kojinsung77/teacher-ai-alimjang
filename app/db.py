@@ -61,9 +61,10 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE TABLE IF NOT EXISTS holidays (
-    date    TEXT PRIMARY KEY,          -- ISO 날짜 (yyyy-MM-dd)
-    source  TEXT DEFAULT 'manual',     -- 'api'(공휴일 자동 채움) | 'manual'(선생님이 직접 추가)
-    name    TEXT                       -- API가 채워준 경우 "신정", "어린이날" 등. manual이면 NULL 가능
+    date        TEXT PRIMARY KEY,          -- ISO 날짜 (yyyy-MM-dd)
+    source      TEXT DEFAULT 'manual',     -- 'api'(학사일정 자동 채움) | 'manual'(선생님이 직접 추가)
+    name        TEXT,                      -- API가 채워준 경우 "여름방학", "리더십캠프" 등. manual이면 NULL 가능
+    is_dayoff   INTEGER NOT NULL DEFAULT 1 -- 1=등교하지 않는 날(자동 알림장 건너뜀), 0=등교하지만 행사가 있는 날
 );
 """
 
@@ -86,9 +87,20 @@ def get_conn():
         conn.close()
 
 
+def _migrate_holidays_is_dayoff(conn):
+    """CREATE TABLE IF NOT EXISTS는 이미 있는 테이블에 새 컬럼을 추가해
+    주지 않으므로, is_dayoff 도입 이전(NEIS 학사일정 API 전환 이전)에
+    만들어진 holidays 테이블에는 이 컬럼이 없을 수 있다 — 있으면 조용히
+    건너뛴다."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(holidays)").fetchall()]
+    if "is_dayoff" not in cols:
+        conn.execute("ALTER TABLE holidays ADD COLUMN is_dayoff INTEGER NOT NULL DEFAULT 1")
+
+
 def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _migrate_holidays_is_dayoff(conn)
 
 
 # ---------- messages ----------
@@ -290,23 +302,37 @@ def list_daily_summary_dates():
 # ---------- 휴일 (holidays) ----------
 
 def is_holiday(date_str: str) -> bool:
+    """자동 알림장 생성을 건너뛸지 판단하는 기준. is_dayoff=1인 행만
+    True로 본다 — 모의고사·리더십캠프처럼 등교는 하는 학사일정
+    (is_dayoff=0)이 실수로 자동 알림장을 건너뛰는 날로 처리되면 안 되기
+    때문이다."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT 1 FROM holidays WHERE date = ? LIMIT 1", (date_str,)
+            "SELECT 1 FROM holidays WHERE date = ? AND is_dayoff = 1 LIMIT 1", (date_str,)
         ).fetchone()
         return row is not None
 
 
-def add_holiday(date_str: str, source: str = "manual", name: str = None):
-    """upsert — 이미 있으면 source/name을 최신 값으로 덮어쓴다(예: 선생님이
-    수동으로 지정해둔 날짜를 나중에 공휴일 API 자동 채움이 이름까지 채워
-    주는 경우)."""
+def add_holiday(date_str: str, source: str = "manual", name: str = None, is_dayoff: bool = True):
+    """upsert — 이미 있으면 source/name/is_dayoff를 최신 값으로 덮어쓴다
+    (예: 선생님이 수동으로 지정해둔 날짜를 나중에 학사일정 자동 채움이
+    이름까지 채워 주는 경우)."""
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO holidays (date, source, name) VALUES (?, ?, ?) "
-            "ON CONFLICT(date) DO UPDATE SET source = excluded.source, name = excluded.name",
-            (date_str, source, name),
+            "INSERT INTO holidays (date, source, name, is_dayoff) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(date) DO UPDATE SET source = excluded.source, name = excluded.name, "
+            "is_dayoff = excluded.is_dayoff",
+            (date_str, source, name, int(is_dayoff)),
         )
+
+
+def get_holiday(date_str: str):
+    """해당 날짜의 holidays 행을 그대로 돌려준다(없으면 None) — [일정]
+    화면이 행사 이름(name)을 보여줄 때 쓴다."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM holidays WHERE date = ?", (date_str,)
+        ).fetchone()
 
 
 def remove_holiday(date_str: str):

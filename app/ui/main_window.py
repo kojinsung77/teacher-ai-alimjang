@@ -533,6 +533,20 @@ class MainWindow(QMainWindow):
         try:
             self._auto_sync_timer.stop()
 
+            # [진단 전용] 설치를 시작하려는 시점에 백그라운드 스레드가
+            # 아직 돌고 있는지 확인해 둔다 — self.close()는 새 스레드
+            # 시작만 막을 뿐, 이미 돌고 있는 스레드(AI 분석 등)를 기다리지
+            # 않으므로, 이 스레드들이 실제로 설치 지연의 원인인지 실측으로
+            # 알아보기 위함이다. 동작은 바꾸지 않는다.
+            auto_sync_running = self._auto_sync_thread is not None and self._auto_sync_thread.isRunning()
+            update_download_running = self._update_download_thread is not None and self._update_download_thread.isRunning()
+            holiday_sync_running = getattr(self, "_holiday_sync_thread", None) is not None and self._holiday_sync_thread.isRunning()
+            update_check.log_update_event(
+                f"[설치 전 점검] _auto_sync_thread 실행 중={auto_sync_running}, "
+                f"_update_download_thread 실행 중={update_download_running}, "
+                f"_holiday_sync_thread 실행 중={holiday_sync_running}"
+            )
+
             from ..core import single_instance
             single_instance.release_install_mutex()
 
@@ -593,6 +607,23 @@ class MainWindow(QMainWindow):
         # "실행 중"으로 오인하지 않도록 뮤텍스는 위에서 이미 풀었다).
         # WizardSilent()는 /SILENT·/VERYSILENT 둘 다에서 True이므로 이
         # 자동 재실행 로직 자체는 그대로 동작한다.
+
+        # [진단 전용] self.close() 직전 상태를 한 번 더 남긴다 — 위쪽
+        # 점검 이후 Popen/Sleep(0.8초) 사이에 스레드가 끝났는지, 아니면
+        # 여전히 돌고 있는 채로 종료를 요청하는 건지 구분하기 위함이다.
+        # 이 로그 줄의 타임스탬프(log_update_event가 자동으로 남김)가 곧
+        # "몇 시 몇 분 몇 초에 설치를 시작하려 했는지"이며, 이후
+        # installer_last_run.log의 WaitForProcessToExit 로그와 시간을
+        # 맞춰볼 수 있다.
+        auto_sync_running_at_close = self._auto_sync_thread is not None and self._auto_sync_thread.isRunning()
+        update_download_running_at_close = self._update_download_thread is not None and self._update_download_thread.isRunning()
+        holiday_sync_running_at_close = getattr(self, "_holiday_sync_thread", None) is not None and self._holiday_sync_thread.isRunning()
+        update_check.log_update_event(
+            f"[설치 전 점검] self.close() 호출 직전 — _auto_sync_thread 실행 중={auto_sync_running_at_close}, "
+            f"_update_download_thread 실행 중={update_download_running_at_close}, "
+            f"_holiday_sync_thread 실행 중={holiday_sync_running_at_close}"
+        )
+
         self._force_quit = True
         self.close()
 

@@ -2,12 +2,12 @@
 """'일정' 화면 — 달력 중심. QCalendarWidget을 재스타일링해서 쓰고,
 오른쪽에 선택한 날짜의 업무 목록을 보여준다.
 
-이번 범위에서는 회의/행사/연수 같은 업무 외 일정은 다루지 않는다 — 업무
-마감일(tasks.deadline)만 달력에 표시한다. 별도 이벤트 테이블은 만들지 않았다.
-
-휴일(자동 알림장을 만들지 않을 날) 지정은 db.holidays 테이블을 그대로
-쓴다 — 국경일 자동 채움(app/core/holidays_sync.py)이 채워준 날짜와
-선생님이 직접 체크박스로 지정한 날짜가 함께 들어간다."""
+업무 마감일(tasks.deadline)과 학사일정(db.holidays)을 함께 달력에
+표시한다. 별도 이벤트 테이블은 만들지 않고, 학사일정도 holidays 테이블
+하나로 관리한다 — 각 행의 is_dayoff로 "등교하지 않는 날"(휴업일/공휴일,
+회색)과 "등교하지만 행사가 있는 날"(모의고사·리더십캠프 등, 보라색)을
+구분해서 칠한다. NEIS 학사일정 자동 채움(app/core/holidays_sync.py)이
+채워준 날짜와 선생님이 직접 체크박스로 지정한 날짜가 함께 들어간다."""
 
 from PySide6.QtCore import QDate
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
@@ -75,6 +75,13 @@ class CalendarView(QWidget):
         self.panel_date_label.setObjectName("SectionTitle")
         panel_layout.addWidget(self.panel_date_label)
 
+        # NEIS 학사일정이 채워준 행사 이름("여름방학", "모의고사(3학년)" 등)
+        # 표시 전용 — 이름이 없는 날엔 숨긴다.
+        self.day_event_label = QLabel("")
+        self.day_event_label.setWordWrap(True)
+        self.day_event_label.setVisible(False)
+        panel_layout.addWidget(self.day_event_label)
+
         self.holiday_checkbox = QCheckBox("🚫 이 날은 알림장 자동 생성 안 함")
         self.holiday_checkbox.toggled.connect(self._on_holiday_toggled)
         panel_layout.addWidget(self.holiday_checkbox)
@@ -127,8 +134,13 @@ class CalendarView(QWidget):
         tasks = stats.todo_tasks()
         task_dates = {t["deadline"] for t in tasks if t["deadline"]}
 
+        # holidays 테이블은 날짜당 한 행뿐이라(PRIMARY KEY) is_dayoff로
+        # 두 집합이 서로 겹치지 않게 나뉜다 — 등교하지 않는 날(휴업일/
+        # 공휴일)과 등교는 하지만 행사가 있는 날(모의고사 등)을 구분해서
+        # 칠한다.
         holiday_rows = db.list_holidays_in_year(self.calendar.yearShown())
-        holiday_dates = {r["date"] for r in holiday_rows}
+        dayoff_dates = {r["date"] for r in holiday_rows if r["is_dayoff"]}
+        event_dates = {r["date"] for r in holiday_rows if not r["is_dayoff"]}
 
         task_font = QFont()
         task_font.setBold(True)
@@ -141,21 +153,37 @@ class CalendarView(QWidget):
         task_holiday_fmt = QTextCharFormat(task_fmt)
         task_holiday_fmt.setFontUnderline(True)
 
+        task_event_fmt = QTextCharFormat(task_fmt)
+        task_event_fmt.setFontUnderline(True)
+        task_event_fmt.setUnderlineColor(QColor(COLORS["event_accent"]))
+
         holiday_fmt = QTextCharFormat()
         holiday_fmt.setBackground(QColor(COLORS["holiday_bg"]))
         holiday_fmt.setForeground(QColor(COLORS["text_secondary"]))
 
-        all_dates = task_dates | holiday_dates
+        event_font = QFont()
+        event_font.setBold(True)
+        event_fmt = QTextCharFormat()
+        event_fmt.setBackground(QColor(COLORS["event_bg"]))
+        event_fmt.setForeground(QColor(COLORS["event_accent"]))
+        event_fmt.setFont(event_font)
+
+        all_dates = task_dates | dayoff_dates | event_dates
         for d_str in all_dates:
             qdate = QDate.fromString(d_str, "yyyy-MM-dd")
             if not qdate.isValid():
                 continue
-            if d_str in task_dates and d_str in holiday_dates:
-                self.calendar.setDateTextFormat(qdate, task_holiday_fmt)
+            if d_str in task_dates and d_str in dayoff_dates:
+                fmt = task_holiday_fmt
+            elif d_str in task_dates and d_str in event_dates:
+                fmt = task_event_fmt
             elif d_str in task_dates:
-                self.calendar.setDateTextFormat(qdate, task_fmt)
+                fmt = task_fmt
+            elif d_str in dayoff_dates:
+                fmt = holiday_fmt
             else:
-                self.calendar.setDateTextFormat(qdate, holiday_fmt)
+                fmt = event_fmt
+            self.calendar.setDateTextFormat(qdate, fmt)
 
         self._marked_dates = all_dates
 
@@ -171,6 +199,20 @@ class CalendarView(QWidget):
         self.holiday_checkbox.blockSignals(True)
         self.holiday_checkbox.setChecked(db.is_holiday(date_str))
         self.holiday_checkbox.blockSignals(False)
+
+        # NEIS 학사일정이 채워준 이름("여름방학", "모의고사(3학년)" 등)이
+        # 있으면 등교 여부와 무관하게 항상 보여준다 — 등교하는 행사일은
+        # 휴일 체크박스가 꺼져 있어도 무슨 날인지 알 수 있어야 한다.
+        holiday_row = db.get_holiday(date_str)
+        if holiday_row and holiday_row["name"]:
+            is_dayoff = bool(holiday_row["is_dayoff"])
+            self.day_event_label.setText(
+                ("🚫 " if is_dayoff else "📌 ") + holiday_row["name"]
+            )
+            self.day_event_label.setObjectName("Muted" if is_dayoff else "EventLabel")
+            self.day_event_label.setVisible(True)
+        else:
+            self.day_event_label.setVisible(False)
 
         tasks = [t for t in stats.todo_tasks() if t["deadline"] == date_str]
         if not tasks:
@@ -214,7 +256,13 @@ class CalendarView(QWidget):
         예: '이 공휴일엔 어차피 알림장을 만들 예정'인 경우."""
         date_str = self.calendar.selectedDate().toString("yyyy-MM-dd")
         if checked:
-            db.add_holiday(date_str, source="manual")
+            # NEIS가 채워준 이름이 이미 있으면(예: 등교하는 행사일을
+            # 선생님이 직접 "쉬는 날"로 바꾸는 경우) 그 이름은 그대로
+            # 남기고 is_dayoff만 켠다 — 덮어써서 이름을 지우지 않는다.
+            existing = db.get_holiday(date_str)
+            name = existing["name"] if existing else None
+            db.add_holiday(date_str, source="manual", name=name)
         else:
             db.remove_holiday(date_str)
         self._mark_calendar_dates()
+        self._render_selected_day()

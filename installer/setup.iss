@@ -209,13 +209,23 @@ end;
 procedure WaitForProcessToExit(const ExeName: String; const MaxWaitMs: Integer);
 var
   Waited: Integer;
+  StillRunning: Boolean;
 begin
+  { [진단 전용] MaxWaitMs(15000)는 그대로 두고, 실제로 몇 ms를
+    기다렸는지와 시간 안에 정상 종료됐는지/15초를 다 채우고 포기했는지만
+    /LOG 파일에 남긴다 — 15초를 늘려야 할지, 앱 쪽 백그라운드 스레드를
+    먼저 정리해야 할지를 실측 숫자로 판단하기 위함이다. }
   Waited := 0;
   while ProcessRunning(ExeName) and (Waited < MaxWaitMs) do
   begin
     Sleep(300);
     Waited := Waited + 300;
   end;
+  StillRunning := ProcessRunning(ExeName);
+  if StillRunning then
+    Log('WaitForProcessToExit: ' + IntToStr(Waited) + 'ms 대기함, 결과=시간 초과(여전히 실행 중) - ' + ExeName)
+  else
+    Log('WaitForProcessToExit: ' + IntToStr(Waited) + 'ms 대기함, 결과=정상 종료 확인됨 - ' + ExeName);
 end;
 
 function InitializeSetup(): Boolean;
