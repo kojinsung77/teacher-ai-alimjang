@@ -106,10 +106,18 @@ def _fetch_schedule(year: int, api_key: str, atpt_code: str, school_code: str) -
 
     schedule = data.get("SchoolSchedule")
     if not schedule:
-        # 그 해에 등록된 학사일정이 아예 없거나(RESULT.CODE가
-        # "데이터 없음"인 경우 SchoolSchedule 키 자체가 없다), 학교
-        # 코드가 잘못됐을 수 있다 — 어느 쪽이든 빈 목록으로 조용히
-        # 취급한다.
+        # SchoolSchedule 키 자체가 없는 응답 — 최상위 RESULT.CODE로
+        # "그 해에 등록된 학사일정이 없음"(INFO-*, 예: 학교 코드는 맞는데
+        # 아직 학사일정이 안 올라온 경우)과 실제 오류(ERROR-*, 예: 인증키가
+        # 유효하지 않음)를 구분한다. 전자만 빈 목록으로 조용히 취급하고,
+        # 후자는 예외로 올려서 호출부(특히 test_connection())가 "연결은
+        # 됐지만 데이터가 없음"과 "애초에 연결/인증이 실패함"을 구분할 수
+        # 있게 한다. sync_if_needed()는 어느 쪽이든 바깥에서 전부
+        # try/except로 삼키므로 이 구분이 그쪽 동작에 영향을 주지 않는다.
+        top_result = data.get("RESULT", {})
+        code = str(top_result.get("CODE", ""))
+        if code.startswith("ERROR"):
+            raise RuntimeError(f"NEIS 학사일정 API 오류: {top_result.get('MESSAGE')}")
         return []
 
     header = schedule[0].get("head", [{}])
@@ -120,6 +128,30 @@ def _fetch_schedule(year: int, api_key: str, atpt_code: str, school_code: str) -
     if len(schedule) < 2:
         return []
     return schedule[1].get("row", [])
+
+
+def test_connection(api_key: str, atpt_code: str, school_code: str) -> tuple[bool, str]:
+    """설정 화면의 [연결 테스트] 버튼용. gemini_client.test_connection()과
+    같은 형태(tuple[bool, str])로 결과를 돌려준다 — sync_if_needed()와
+    달리 사용자가 직접 누른 동작이므로 실패를 조용히 삼키지 않고 사람이
+    읽을 수 있는 이유를 그대로 알려준다. 저장(keyring/settings)은 전혀
+    하지 않는 순수 조회다 — 입력창의 값을 그대로 받아서 그 자리에서만
+    확인한다."""
+    api_key = (api_key or "").strip()
+    atpt_code = (atpt_code or "").strip()
+    school_code = (school_code or "").strip()
+    if not api_key or not atpt_code or not school_code:
+        return False, "인증키/시도교육청코드/학교코드를 모두 입력해 주세요."
+
+    year = date.today().year
+    try:
+        rows = _fetch_schedule(year, api_key, atpt_code, school_code)
+    except Exception as e:
+        return False, f"연결 실패: {e}"
+
+    if not rows:
+        return True, "연결에는 성공했지만 올해 등록된 학사일정이 없습니다. 학교코드를 다시 확인해 보세요."
+    return True, f"학사일정 {len(rows)}건을 확인했습니다."
 
 
 def sync_if_needed():

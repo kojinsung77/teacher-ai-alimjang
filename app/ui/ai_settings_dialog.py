@@ -178,6 +178,20 @@ class _SettingsFormMixin:
 
         v.addLayout(neis_code_row)
 
+        neis_test_row = QHBoxLayout()
+        neis_test_btn = QPushButton("연결 테스트")
+        neis_test_btn.setObjectName("SecondaryButton")
+        neis_test_btn.setCursor(Qt.PointingHandCursor)
+        neis_test_btn.clicked.connect(self.on_test_neis)
+        neis_test_row.addWidget(neis_test_btn)
+        neis_test_row.addStretch(1)
+        v.addLayout(neis_test_row)
+
+        self.neis_status_label = QLabel("")
+        self.neis_status_label.setObjectName("Muted")
+        self.neis_status_label.setWordWrap(True)
+        v.addWidget(self.neis_status_label)
+
         neis_desc = QLabel(
             "방학·재량휴업일·수요/금요대체일 같은 학교 자체 일정과 모의고사·\n"
             "행사 일정을 NEIS(나이스 교육정보 개방 포털)에서 자동으로 가져와\n"
@@ -203,6 +217,26 @@ class _SettingsFormMixin:
         else:
             self.neis_key_input.setEchoMode(QLineEdit.Password)
             self.neis_key_toggle_btn.setText("보기")
+
+    def on_test_neis(self):
+        """입력창의 값을 그대로(아직 저장 전이어도) 가져와 NEIS에 바로
+        연결해 본다 — [OK]를 눌러야만 실제로 저장되는 것과는 무관한
+        순수 조회다. Gemini의 on_test()/_set_status()와 동일한 패턴으로
+        상태 라벨만 갱신한다(별도 스레드 없음 — Gemini 쪽과 일관성을
+        맞춘다)."""
+        api_key = self.neis_key_input.text().strip()
+        atpt_code = self.neis_atpt_input.text().strip()
+        school_code = self.neis_school_input.text().strip()
+        self.neis_status_label.setObjectName("Muted")
+        self.neis_status_label.setText("연결 확인 중...")
+        self.neis_status_label.style().unpolish(self.neis_status_label)
+        self.neis_status_label.style().polish(self.neis_status_label)
+        QApplication.processEvents()
+        ok, message = holidays_sync.test_connection(api_key, atpt_code, school_code)
+        self.neis_status_label.setObjectName("StatusOk" if ok else "StatusError")
+        self.neis_status_label.setText(("✓ " if ok else "✗ ") + message)
+        self.neis_status_label.style().unpolish(self.neis_status_label)
+        self.neis_status_label.style().polish(self.neis_status_label)
 
     def _build_gemini_section(self, root: QVBoxLayout):
         """Gemini AI 설정 본문만 root 레이아웃에 채운다: 분석 기간/AI
