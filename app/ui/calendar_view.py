@@ -7,13 +7,21 @@
 하나로 관리한다 — 각 행의 is_dayoff로 "등교하지 않는 날"(휴업일/공휴일,
 회색)과 "등교하지만 행사가 있는 날"(모의고사·리더십캠프 등, 보라색)을
 구분해서 칠한다. NEIS 학사일정 자동 채움(app/core/holidays_sync.py)이
-채워준 날짜와 선생님이 직접 체크박스로 지정한 날짜가 함께 들어간다."""
+채워준 날짜와 선생님이 직접 체크박스로 지정한 날짜가 함께 들어간다.
+
+QCalendarWidget은 날짜 칸에 배경색/밑줄을 입히는 setDateTextFormat()만
+지원하고 칸 안에 별도 텍스트(이름)를 넣는 기능은 없다 — 그래서 달을 한눈에
+훑어볼 때 무슨 일정인지 색깔만으로는 알기 어려운 한계가 있다. 이를
+보완하려고 캘린더 아래에 "이번 달 학사일정" 목록(월 이동 시 함께
+갱신)을 별도로 둔다. 캘린더를 직접 그리는 방식으로 새로 만드는 대신 이
+방식을 택한 이유는 지금 잘 작동하는 캘린더 부품(월 이동/날짜 클릭/업무
+마감일 색칠)을 전혀 건드리지 않아도 되기 때문이다."""
 
 from PySide6.QtCore import QDate
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCalendarWidget,
-    QScrollArea, QCheckBox
+    QScrollArea, QCheckBox, QSizePolicy
 )
 
 from .. import db
@@ -63,7 +71,45 @@ class CalendarView(QWidget):
         self.calendar.setHorizontalHeaderFormat(QCalendarWidget.ShortDayNames)
         self.calendar.selectionChanged.connect(self._render_selected_day)
         self.calendar.currentPageChanged.connect(self._mark_calendar_dates)
-        content_row.addWidget(self.calendar, 2)
+
+        # 캘린더는 원래 크기 정책(세로로 늘어남)을 그대로 두고 — 날짜 칸이
+        # 작아져 숫자가 안 보이거나 클릭하기 불편해지는 걸 피하려는 것.
+        # 대신 아래 목록 쪽 높이를 내부 스크롤로 고정해서, 항목이 몇 개든
+        # 화면 전체 길이에는 영향을 주지 않게 한다.
+        calendar_col = QVBoxLayout()
+        calendar_col.setSpacing(16)
+        calendar_col.addWidget(self.calendar)
+
+        self.month_events_box = QFrame()
+        self.month_events_box.setObjectName("Card")
+        # 안쪽 스크롤 영역이 세로로 늘어나는 정책(Expanding)을 갖고 있어서
+        # 그대로 두면 이 카드 자체도 늘어나려 해서 calendar_col 안에서
+        # 캘린더와 세로 공간을 반씩 나눠 갖고, 카드 아래쪽에 빈 여백만
+        # 남는다. Maximum으로 고정해 카드는 자기 내용(제목 + 최대 200px
+        # 스크롤)만큼만 차지하게 하고, 남는 세로 공간은 전부 캘린더가
+        # 흡수하게 한다 — 날짜 칸이 작아지지 않게 하려는 목적과도 맞다.
+        self.month_events_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        month_events_layout = QVBoxLayout(self.month_events_box)
+        month_events_layout.setContentsMargins(18, 16, 18, 16)
+        month_events_layout.setSpacing(10)
+
+        month_events_title = QLabel("이번 달 학사일정")
+        month_events_title.setObjectName("SectionTitle")
+        month_events_layout.addWidget(month_events_title)
+
+        month_events_scroll = QScrollArea()
+        month_events_scroll.setWidgetResizable(True)
+        month_events_scroll.setFrameShape(QFrame.NoFrame)
+        month_events_scroll.setMaximumHeight(200)
+        month_events_container = QWidget()
+        self.month_events_list_layout = QVBoxLayout(month_events_container)
+        self.month_events_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.month_events_list_layout.setSpacing(6)
+        month_events_scroll.setWidget(month_events_container)
+        month_events_layout.addWidget(month_events_scroll)
+
+        calendar_col.addWidget(self.month_events_box)
+        content_row.addLayout(calendar_col, 2)
 
         panel = QFrame()
         panel.setObjectName("Card")
@@ -106,6 +152,13 @@ class CalendarView(QWidget):
     def _clear_panel_list(self):
         while self.panel_list_layout.count():
             item = self.panel_list_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+    def _clear_month_events_list(self):
+        while self.month_events_list_layout.count():
+            item = self.month_events_list_layout.takeAt(0)
             w = item.widget()
             if w:
                 w.deleteLater()
@@ -186,6 +239,45 @@ class CalendarView(QWidget):
             self.calendar.setDateTextFormat(qdate, fmt)
 
         self._marked_dates = all_dates
+        self._render_month_events(holiday_rows)
+
+    def _render_month_events(self, holiday_rows):
+        """캘린더 아래 "이번 달 학사일정" 목록을 채운다. holiday_rows는
+        _mark_calendar_dates()가 이미 조회해 둔 그 해 전체 목록을 그대로
+        받아서 여기서 다시 쿼리하지 않는다 — 지금 보이는 달(연/월)로만
+        걸러서 날짜순으로 나열한다. 상세 패널(_render_selected_day)과
+        똑같은 🚫(등교 안 함)/📌(등교하지만 행사 있음) 아이콘 규칙을
+        그대로 쓴다."""
+        self._clear_month_events_list()
+
+        year = self.calendar.yearShown()
+        month = self.calendar.monthShown()
+        month_prefix = f"{year}-{month:02d}-"
+        rows = sorted(
+            (r for r in holiday_rows if r["name"] and r["date"].startswith(month_prefix)),
+            key=lambda r: r["date"],
+        )
+
+        if not rows:
+            empty = QLabel("이번 달은 등록된 학사일정이 없습니다.")
+            empty.setObjectName("Muted")
+            self.month_events_list_layout.addWidget(empty)
+            self.month_events_list_layout.addStretch(1)
+            return
+
+        for r in rows:
+            qdate = QDate.fromString(r["date"], "yyyy-MM-dd")
+            if not qdate.isValid():
+                continue
+            weekday = _WEEKDAY_KR[qdate.dayOfWeek() - 1]
+            is_dayoff = bool(r["is_dayoff"])
+            icon = "🚫" if is_dayoff else "📌"
+            row_label = QLabel(f"{qdate.month()}/{qdate.day()}({weekday}) {icon} {r['name']}")
+            row_label.setObjectName("Muted" if is_dayoff else "EventLabel")
+            row_label.setWordWrap(True)
+            self.month_events_list_layout.addWidget(row_label)
+
+        self.month_events_list_layout.addStretch(1)
 
     def _render_selected_day(self):
         self._clear_panel_list()
