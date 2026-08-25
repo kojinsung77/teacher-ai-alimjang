@@ -719,6 +719,19 @@ QCalendarWidget {{
     border: 1px solid {COLORS['border']};
     border-radius: 16px;
 }}
+/* '이번 달 학사일정' 목록 줄 — 캘린더에서 날짜를 클릭하면 해당 줄만
+   MonthEventRowHighlight로 바뀐다(기존 통계 카드용 파란 팔레트 재사용,
+   휴일(회색)/행사(보라) 라벨 색상과 겹치지 않게). */
+QFrame#MonthEventRow {{
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+}}
+QFrame#MonthEventRowHighlight {{
+    background-color: {COLORS['stat_blue_bg']};
+    border: 1px solid {COLORS['stat_blue_border']};
+    border-radius: 8px;
+}}
 QCalendarWidget QWidget#qt_calendar_navigationbar {{
     background-color: {COLORS['card_bg']};
     border-top-left-radius: 16px;

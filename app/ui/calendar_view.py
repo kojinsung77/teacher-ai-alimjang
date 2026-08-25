@@ -41,6 +41,11 @@ class CalendarView(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._marked_dates = set()
+        # "이번 달 학사일정" 목록에서 날짜별 줄(QFrame)을 찾아 강조/스크롤
+        # 하기 위한 인덱스. _clear_month_events_list()가 월 이동 때마다
+        # 다시 초기화한다.
+        self._month_event_rows = {}
+        self._highlighted_month_event_date = None
         self._build_ui()
         self.refresh()
 
@@ -97,16 +102,18 @@ class CalendarView(QWidget):
         month_events_title.setObjectName("SectionTitle")
         month_events_layout.addWidget(month_events_title)
 
-        month_events_scroll = QScrollArea()
-        month_events_scroll.setWidgetResizable(True)
-        month_events_scroll.setFrameShape(QFrame.NoFrame)
-        month_events_scroll.setMaximumHeight(200)
+        # 날짜 클릭 시 해당 줄로 스크롤하려면(ensureWidgetVisible) 이
+        # 스크롤 영역 자체를 인스턴스 속성으로 들고 있어야 한다.
+        self.month_events_scroll = QScrollArea()
+        self.month_events_scroll.setWidgetResizable(True)
+        self.month_events_scroll.setFrameShape(QFrame.NoFrame)
+        self.month_events_scroll.setMaximumHeight(200)
         month_events_container = QWidget()
         self.month_events_list_layout = QVBoxLayout(month_events_container)
         self.month_events_list_layout.setContentsMargins(0, 0, 0, 0)
         self.month_events_list_layout.setSpacing(6)
-        month_events_scroll.setWidget(month_events_container)
-        month_events_layout.addWidget(month_events_scroll)
+        self.month_events_scroll.setWidget(month_events_container)
+        month_events_layout.addWidget(self.month_events_scroll)
 
         calendar_col.addWidget(self.month_events_box)
         content_row.addLayout(calendar_col, 2)
@@ -162,6 +169,11 @@ class CalendarView(QWidget):
             w = item.widget()
             if w:
                 w.deleteLater()
+        # 기존 줄이 전부 삭제되므로 인덱스와 강조 상태도 함께 비운다 —
+        # 안 비우면 이미 deleteLater()된(곧 없어질) 프레임을 가리키는
+        # 죽은 참조가 남는다.
+        self._month_event_rows = {}
+        self._highlighted_month_event_date = None
 
     # ---------- 데이터 로딩/표시 ----------
 
@@ -272,12 +284,51 @@ class CalendarView(QWidget):
             weekday = _WEEKDAY_KR[qdate.dayOfWeek() - 1]
             is_dayoff = bool(r["is_dayoff"])
             icon = "🚫" if is_dayoff else "📌"
+
+            # 줄마다 작은 QFrame으로 한 번 감싼다 — 라벨 자체의 objectName은
+            # 기존 색상 규칙(Muted/EventLabel)을 위해 그대로 두고, "선택된
+            # 날짜" 강조는 이 감싸는 프레임의 objectName만 바꿔서 준다
+            # (_highlight_month_event 참고). 날짜별로 찾을 수 있게
+            # _month_event_rows에 저장해 둔다.
+            row_frame = QFrame()
+            row_frame.setObjectName("MonthEventRow")
+            row_frame_layout = QVBoxLayout(row_frame)
+            row_frame_layout.setContentsMargins(6, 3, 6, 3)
+            row_frame_layout.setSpacing(0)
+
             row_label = QLabel(f"{qdate.month()}/{qdate.day()}({weekday}) {icon} {r['name']}")
             row_label.setObjectName("Muted" if is_dayoff else "EventLabel")
             row_label.setWordWrap(True)
-            self.month_events_list_layout.addWidget(row_label)
+            row_frame_layout.addWidget(row_label)
+
+            self.month_events_list_layout.addWidget(row_frame)
+            self._month_event_rows[r["date"]] = row_frame
 
         self.month_events_list_layout.addStretch(1)
+
+    def _highlight_month_event(self, date_str: str):
+        """"이번 달 학사일정" 목록에서 date_str에 해당하는 줄을 강조하고
+        화면에 보이도록 스크롤한다. 이전에 강조돼 있던 줄이 있으면 먼저
+        해제한다. date_str이 목록에 없으면(그 날짜에 학사일정이 없거나,
+        다른 달로 넘어가 목록 자체가 새로 만들어진 경우) 강조 해제만 하고
+        조용히 넘어간다 — 에러를 내지 않는다."""
+        if self._highlighted_month_event_date is not None:
+            prev_frame = self._month_event_rows.get(self._highlighted_month_event_date)
+            if prev_frame is not None:
+                prev_frame.setObjectName("MonthEventRow")
+                prev_frame.style().unpolish(prev_frame)
+                prev_frame.style().polish(prev_frame)
+            self._highlighted_month_event_date = None
+
+        frame = self._month_event_rows.get(date_str)
+        if frame is None:
+            return
+
+        frame.setObjectName("MonthEventRowHighlight")
+        frame.style().unpolish(frame)
+        frame.style().polish(frame)
+        self._highlighted_month_event_date = date_str
+        self.month_events_scroll.ensureWidgetVisible(frame)
 
     def _render_selected_day(self):
         self._clear_panel_list()
@@ -285,6 +336,7 @@ class CalendarView(QWidget):
         date_str = qdate.toString("yyyy-MM-dd")
         weekday = _WEEKDAY_KR[qdate.dayOfWeek() - 1]
         self.panel_date_label.setText(f"{qdate.year()}년 {qdate.month()}월 {qdate.day()}일 ({weekday})")
+        self._highlight_month_event(date_str)
 
         # setChecked()가 toggled를 다시 울려 _on_holiday_toggled()가
         # 도로 db.add_holiday/remove_holiday를 부르지 않도록 신호를 잠깐 끈다.
