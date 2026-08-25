@@ -1,7 +1,7 @@
 {
-  "version": "1.7.0",
-  "notes": "[일정] 화면 캘린더 아래에 '이번 달 학사일정' 목록을 추가했습니다. 날짜 칸 색깔만으로는 무슨 일정인지 알기 어려웠던 걸 보완해서, 이번 달 방학ㆍ공휴일ㆍ모의고사 같은 학사일정을 날짜순으로 한눈에 볼 수 있습니다. 월 이동 시 목록도 함께 갱신됩니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.7.0/TeacherAlimjang_Setup_v1.7.0.exe",
-  "sha256": "356044a4160cdf6c5fd68de1fde0442b381f628aa7be51314fd1775d3a9311c3",
+  "version": "1.7.1",
+  "notes": "[일정] 화면의 '이번 달 학사일정' 목록에서, 캘린더의 날짜를 클릭하면 목록 전체는 그대로 두고 해당 날짜 줄만 강조되면서 자동으로 스크롤되도록 개선했습니다. 방학처럼 목록이 길어져도 원하는 날짜를 빠르게 찾을 수 있습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.7.1/TeacherAlimjang_Setup_v1.7.1.exe",
+  "sha256": "f3da11d27277e82f15fb1bc6e83f7d1dc7c19409bfebbe11b1803f23e46aac1b",
   "release_date": "2026-08-25"
 }
