@@ -1,7 +1,7 @@
 {
-  "version": "1.5.0",
-  "notes": "학사일정 자동 채움을 국경일만 알려주던 공공데이터포털 API에서 NEIS(나이스 교육정보 개방 포털) 학사일정 API로 교체했습니다. 학교별 방학ㆍ재량휴업일ㆍ수요/금요대체일은 물론 모의고사 같은 행사까지 자동으로 반영되며, [일정] 화면에서 등교하지 않는 날과 행사가 있는 날을 구분해서 보여줍니다. 설정 화면에서 다른 학교 코드로 바꿔 쓸 수도 있습니다. 그 외 자동 업데이트 설치가 느리다는 보고의 원인을 좁히기 위한 진단 로그를 추가했습니다(동작 변화 없음).",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.5.0/TeacherAlimjang_Setup_v1.5.0.exe",
-  "sha256": "e6e3b1e654378fa3d4179adae2c04a086234665347ec2ea50550835e55dff6a3",
+  "version": "1.6.0",
+  "notes": "일반 설정의 '학사일정 자동 채움' 섹션에 [연결 테스트] 버튼을 추가했습니다. 인증키ㆍ시도교육청코드ㆍ학교코드를 입력한 뒤 저장 전에 바로 눌러서 실제로 NEIS에 연결되는지, 학사일정이 몇 건 확인되는지 그 자리에서 확인할 수 있습니다. 아울러 잘못된 인증키를 넣어도 '성공'으로 잘못 표시되던 내부 문제를 함께 고쳤습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.6.0/TeacherAlimjang_Setup_v1.6.0.exe",
+  "sha256": "b135f558f31d0ba77b1913e9a2ffa36736c69f60d4d56728d528f4580dbf95ae",
   "release_date": "2026-08-25"
 }
