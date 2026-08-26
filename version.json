@@ -1,7 +1,7 @@
 {
-  "version": "1.8.1",
-  "notes": "앱 이름과 아이콘을 '쿨브리핑'으로 새단장했습니다. 화면 크기에 따라 [일정] 화면의 학사일정 목록이 잘 안 보이던 문제도 함께 고쳤습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.1/TeacherAlimjang_Setup_v1.8.1.exe",
-  "sha256": "37ef66d164b8b90f1f63a511158623f9435bcd78d3ba414b6539619b553956b1",
+  "version": "1.8.2",
+  "notes": "설치할 때 바탕화면·시작 메뉴 아이콘이 자동으로 새로 반영되도록 개선했습니다. [일정] 화면의 캘린더와 학사일정 목록이 화면 크기와 관계없이 항상 보기 좋은 비율로 나오도록 조정했습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.2/TeacherAlimjang_Setup_v1.8.2.exe",
+  "sha256": "1e100424c4a661ae2cdd6a7107018a7ef97858d1ea47b3ab35ae7754f23b29c2",
   "release_date": "2026-08-26"
 }
