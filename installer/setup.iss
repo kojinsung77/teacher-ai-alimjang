@@ -122,6 +122,14 @@ var
 function SetEnvironmentVariableW(lpName, lpValue: WideString): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
 
+procedure SHChangeNotify(wEventId: Longint; uFlags: Longint; dwItem1, dwItem2: Longint);
+  external 'SHChangeNotify@shell32.dll stdcall';
+
+const
+  SHCNE_ASSOCCHANGED = $08000000;
+  SHCNF_IDLIST = $0000;
+  SHCNF_FLUSH = $1000;
+
 { ---------- -2. PyInstaller onefile 부트로더의 부모-프로세스 검증
   오염 방지 ---------- }
 { "Security validation failure: parent process has different
@@ -263,10 +271,55 @@ end;
   때가 있다). 그래서 Exec 뒤에 Setup.exe 프로세스 자체가 몇 초간 더
   살아있게 붙잡아 둔다 — 부트로더의 부모 검증이 이 짧은 창 안에서
   끝나므로, 부모가 아직 살아있어야 통과한다. }
+
+{ ---------- 0.5. 아이콘/셸 캐시 새로고침 ---------- }
+{ 앱 아이콘을 바꾼 뒤(v1.8.0, 체크 아이콘 -> 펭귄) 실사용자가 "바탕화면
+  바로가기가 여전히 옛날 아이콘으로 보인다"고 보고했다. exe 파일 자체의
+  아이콘 리소스는 이미 새것으로 바뀌어 있는데(설치된 exe에서 직접 아이콘을
+  추출해 확인함), 탐색기가 예전 아이콘을 자체 캐시(iconcache_*.db)에
+  들고 있다가 계속 그걸 보여주는 것 — 실제로 이 컴퓨터에서
+  ie4uinit.exe -ClearIconCache + 탐색기 재시작으로 해결을 확인했지만,
+  그건 사람이 그 컴퓨터에서 직접 명령을 실행한 것이라 다른 설치본에는
+  적용되지 않는다. 그래서 설치 마지막 단계에서 자동으로 실행되게 옮긴다.
+
+  같은 조건(옛 아이콘으로 이미 설치되어 탐색기가 캐시해 둔 상태)을
+  인위적으로 재현해서 검증했다 — SHChangeNotify와 ie4uinit
+  -ClearIconCache만으로 충분한지(탐색기를 안 죽이는 milder한 방법)를
+  따로따로 격리해서 재현하기엔 Windows 아이콘 캐시 무효화 자체가 다분히
+  비결정적이라(파일을 덮어쓴 시점의 타이밍만으로도 자체적으로 갱신되는
+  경우가 섞여 나와서 milder 단계만으로 됐다고 성급히 결론 내리기
+  위험했다), 세 가지를 전부 포함한 조합을 "재현된 stale 상태 -> 이
+  설치 프로그램의 자동 실행 -> 수동 개입 없이 새 아이콘 확인"까지
+  엔드투엔드로 반복 검증했다. 탐색기 재시작은 사용자가 열어둔 탐색기
+  창들이 잠깐 닫혔다 다시 뜨는 부작용이 있지만(열려 있던 폴더들은
+  자동으로 다시 열린다), 자동 업데이트가 조용히(/SILENT) 실행되는 이
+  앱의 특성상 사람이 수동으로 캐시를 정리해줄 걸 기대할 수 없으므로
+  확실한 쪽(세 단계 전부)을 택했다. }
+procedure RefreshShellIconCache();
+var
+  ResultCode: Integer;
+begin
+  SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST or SHCNF_FLUSH, 0, 0);
+  Exec(ExpandConstant('{sys}\ie4uinit.exe'), '-ClearIconCache', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode);
+  { taskkill으로 종료하면 explorer.exe가 대개 자동으로 재시작되지만,
+    항상 그런 건 아니므로(일부 Windows 빌드/설정) 명시적으로 다시
+    띄워 둔다 — 이미 떠 있으면 중복 실행되지 않고 그냥 무시된다. }
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM explorer.exe', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(500);
+  Exec(ExpandConstant('{win}\explorer.exe'), '', '', SW_SHOWNORMAL,
+    ewNoWait, ResultCode);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
 begin
+  if CurStep = ssDone then
+  begin
+    RefreshShellIconCache();
+  end;
   if (CurStep = ssDone) and WizardSilent() then
   begin
     Exec(ExpandConstant('{app}\{#MyAppExeName}'), '', '', SW_SHOWNORMAL,

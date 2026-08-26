@@ -17,11 +17,11 @@ QCalendarWidget은 날짜 칸에 배경색/밑줄을 입히는 setDateTextFormat
 방식을 택한 이유는 지금 잘 작동하는 캘린더 부품(월 이동/날짜 클릭/업무
 마감일 색칠)을 전혀 건드리지 않아도 되기 때문이다."""
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCalendarWidget,
-    QScrollArea, QCheckBox, QSizePolicy
+    QScrollArea, QCheckBox, QSplitter
 )
 
 from .. import db
@@ -80,27 +80,45 @@ class CalendarView(QWidget):
         # 컴퓨터마다 다르면(_resize_to_screen()이 화면 해상도에 따라
         # 900x600~1200x800 사이에서 창 크기를 정함) 캘린더 세로 크기도
         # 그만큼 들쭉날쭉해진다 — 실측 결과 900x600 창에서는 214px,
-        # 1200x800 창에서는 414px까지 벌어졌다. Maximum으로 바꾸면 "남는
-        # 공간이 있어도 자기 고유 크기(사실상 최소 크기) 이상으로는
-        # 늘어나지 않게" 되어 화면 크기와 무관하게 항상 같은 높이(실측
-        # 199px)로 고정된다 — 날짜 칸이 작아지는 하한 걱정은 없다(상한만
-        # 걸 뿐 하한은 강제하지 않는데, 실측상 900x600 하한에서도 199px
-        # 그대로였다).
-        self.calendar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        # 1200x800 창에서는 414px까지 벌어졌다.
+        #
+        # v1.8.1에서는 Maximum 정책으로 캘린더를 고유 크기(199px)에 고정해
+        # 화면 크기와 무관하게 만들었었지만, 그러면 캘린더가 페이지 세로
+        # 공간에서 차지하는 비중이 너무 작아졌다(사용자 피드백) — 캘린더가
+        # 페이지의 절반 정도는 차지하도록 다시 키워달라는 요청.
+        #
+        # 처음엔 QVBoxLayout에서 calendar/month_events_box 둘 다 Expanding +
+        # 동일 stretch factor(1)로 주면 50:50이 될 거라 생각했는데, 실측해보니
+        # 아니었다(예: 1200x800 창에서 캘린더 230px vs 목록 449px) — 원인은
+        # QVBoxLayout의 stretch 기반 surplus 분배가 각 위젯의 sizeHint를
+        # 베이스라인으로 두는데, month_events_box의 sizeHint는 그 안의 스크롤
+        # 목록 항목 개수(그 달 학사일정 몇 개인지)에 따라 매번 달라지기
+        # 때문이다(실측 당시 449px) — 목록이 많은 달일수록 그쪽에 더 많은
+        # 공간을 몰아주는 식이라 내용물에 좌우되지 않는 고정 비율이 안 됐다.
+        # QSizePolicy.Ignored로 sizeHint 자체를 무시하게 해봐도(둘 다 또는
+        # 한쪽만) 결과가 한쪽이 전부 먹고 한쪽은 0이 되는 식으로 더 나빠졌다.
+        #
+        # 그래서 QSplitter(Qt.Vertical)로 바꿨다 — 자식 위젯의 sizeHint와
+        # 무관하게 명시적으로 지정한 크기 비율을 유지해주고, 창 크기가
+        # 바뀌어도(리사이즈) 그 비율을 그대로 유지한 채 다시 나눠준다(실측
+        # 확인: 1200x800/1080x720/900x600 세 크기 모두에서 정확히 50:50에
+        # 가깝게 유지됨). 사용자가 드래그해서 비율을 바꾸는 기능은 요청에
+        # 없었으므로 핸들을 비활성화해 시각적으로는 기존과 동일한 카드
+        # 2장이 쌓인 모습 그대로 유지한다(resizeEvent에서 항상 50:50으로
+        # 다시 맞춰주므로, 핸들이 살아있어도 사용자가 드래그해봤자 다음
+        # 리사이즈에 원상복구되긴 하지만, 애초에 드래그가 안 되는 쪽이
+        # 혼란이 없다).
+        self.calendar.setMinimumHeight(220)
 
-        calendar_col = QVBoxLayout()
-        calendar_col.setSpacing(16)
-        calendar_col.addWidget(self.calendar)
+        self._calendar_splitter = QSplitter(Qt.Vertical)
+        self._calendar_splitter.setObjectName("CalendarSplitter")
+        self._calendar_splitter.setChildrenCollapsible(False)
+        self._calendar_splitter.setHandleWidth(16)
+        self._calendar_splitter.addWidget(self.calendar)
 
         self.month_events_box = QFrame()
         self.month_events_box.setObjectName("Card")
-        # 캘린더 높이를 고정했으니, 컴퓨터마다 남는(혹은 모자란) 세로
-        # 공간은 이제 이 카드가 흡수해야 한다 — Expanding으로 바꿔서
-        # calendar_col의 남는 공간을 이 카드가 가져가게 한다(기존
-        # Maximum 정책은 카드를 항상 자기 내용 크기로만 고정해서, 캘린더가
-        # 작아진 만큼 생기는 여유 공간이 목록이 아니라 빈 여백으로
-        # 버려졌다).
-        self.month_events_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        self.month_events_box.setMinimumHeight(150)
         month_events_layout = QVBoxLayout(self.month_events_box)
         month_events_layout.setContentsMargins(18, 16, 18, 16)
         month_events_layout.setSpacing(10)
@@ -114,12 +132,10 @@ class CalendarView(QWidget):
         self.month_events_scroll = QScrollArea()
         self.month_events_scroll.setWidgetResizable(True)
         self.month_events_scroll.setFrameShape(QFrame.NoFrame)
-        # 예전엔 200을 상한이자 사실상 고정값으로 썼다(카드 자체가
-        # Maximum이라 늘 200 그대로였음). 이제 카드가 Expanding이라 남는
-        # 공간만큼 커질 수 있으니, 200은 "최소한 이만큼은 보장" 정도의
-        # 여유 있는 상한으로 올려 둔다 — 그래도 화면이 극단적으로 커지는
-        # 경우를 대비해 무한정 늘어나지는 않게 상한 자체는 유지한다.
-        self.month_events_scroll.setMaximumHeight(500)
+        # 이제 이 카드 높이는 QSplitter가 캘린더와 50:50으로 나눠주므로
+        # 화면이 아주 커도 무한정 늘어나진 않지만, 혹시 모를 극단적인
+        # 경우를 대비한 여유 있는 안전망으로 상한을 하나 더 둔다.
+        self.month_events_scroll.setMaximumHeight(600)
         month_events_container = QWidget()
         self.month_events_list_layout = QVBoxLayout(month_events_container)
         self.month_events_list_layout.setContentsMargins(0, 0, 0, 0)
@@ -127,8 +143,19 @@ class CalendarView(QWidget):
         self.month_events_scroll.setWidget(month_events_container)
         month_events_layout.addWidget(self.month_events_scroll, 1)
 
-        calendar_col.addWidget(self.month_events_box)
-        content_row.addLayout(calendar_col, 2)
+        self._calendar_splitter.addWidget(self.month_events_box)
+        # 핸들을 비활성화해 드래그로 비율을 바꿀 수 없게 한다 — 항상
+        # resizeEvent에서 50:50으로 다시 맞추므로 어차피 드래그해도
+        # 원상복구되지만, 처음부터 드래그가 안 되는 편이 사용자에게
+        # 덜 혼란스럽다. 핸들 자체(16px 폭)는 기존 calendar_col의
+        # setSpacing(16)과 동일한 여백 역할만 하도록 남겨 둔다.
+        handle = self._calendar_splitter.handle(1)
+        if handle is not None:
+            handle.setEnabled(False)
+        self._calendar_splitter.setStyleSheet(
+            "QSplitter::handle { background: transparent; }"
+        )
+        content_row.addWidget(self._calendar_splitter, 2)
 
         panel = QFrame()
         panel.setObjectName("Card")
@@ -167,6 +194,18 @@ class CalendarView(QWidget):
 
         content_row.addWidget(panel, 1)
         root.addLayout(content_row)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # 창 크기가 바뀔 때마다 캘린더/목록 스플리터를 정확히 50:50으로
+        # 다시 맞춘다 — QSplitter가 리사이즈 시 기존 비율을 대체로 유지해
+        # 주긴 하지만(실측상 잘 유지됨), 최초 표시 시점(첫 resizeEvent)에
+        # 스플리터가 아직 기본 분배값을 갖고 있을 수 있어 매번 명시적으로
+        # 다시 계산해 어떤 상황에서도 정확히 50:50이 되도록 못박아 둔다.
+        total = self._calendar_splitter.height()
+        if total > 0:
+            half = total // 2
+            self._calendar_splitter.setSizes([half, total - half])
 
     def _clear_panel_list(self):
         while self.panel_list_layout.count():
