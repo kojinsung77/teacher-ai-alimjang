@@ -35,7 +35,7 @@ def _build_feedback_url() -> str:
     화면 이후로 못 넘어가는 원인이었다 — su(제목)를 quote()로 정확히
     인코딩해서 넘긴다."""
     to = "jinkso@jungang.hs.kr"
-    subject = urllib.parse.quote("[교사업무 AI 알림장] 건의사항")
+    subject = urllib.parse.quote("[쿨브리핑] 건의사항")
     body = urllib.parse.quote("여기에 건의사항을 적어주세요.\n\n")
     return f"https://mail.google.com/mail/?view=cm&fs=1&to={to}&su={subject}&body={body}"
 

@@ -20,7 +20,7 @@
 ; 이 폴더를 스크립트에 등장시키지 않는 것 자체가 곧 "보존"을 보장한다.
 ; 재설치/업데이트/제거 어떤 경우에도 이 원칙은 유지해야 한다.
 
-#define MyAppName "교사업무 AI 알림장"
+#define MyAppName "쿨브리핑"
 ; app/config.py의 APP_VERSION과 항상 맞춰서 올린다.
 #define MyAppVersion "1.7.2"
 #define MyAppPublisher "Gosussam"

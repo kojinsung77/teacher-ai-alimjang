@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "교사업무 AI 알림장"
+APP_NAME = "쿨브리핑"
 APP_DIR_NAME = "TeacherAlimjang"
 
 # 설치 프로그램(installer/setup.iss의 MyAppVersion)과 항상 맞춰서 올린다.
