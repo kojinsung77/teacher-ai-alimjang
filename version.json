@@ -1,7 +1,7 @@
 {
-  "version": "1.7.2",
-  "notes": "새로 설치하신 선생님도 별도 설정 없이 [일정] 화면에 학사일정이 자동으로 채워지도록 개선했습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.7.2/TeacherAlimjang_Setup_v1.7.2.exe",
-  "sha256": "7590284814672a82551cf91afabcaeb6f5454fde354466b30308dd28765416a9",
-  "release_date": "2026-08-25"
+  "version": "1.8.0",
+  "notes": "앱 이름을 '쿨브리핑'으로 변경하고 아이콘을 새 펭귄 캐릭터로 교체했습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.0/TeacherAlimjang_Setup_v1.8.0.exe",
+  "sha256": "29c637bea96dff67b3d9ce6df907548d73d6ff809b5b9b9ba2e2af08f32b6c41",
+  "release_date": "2026-08-26"
 }
