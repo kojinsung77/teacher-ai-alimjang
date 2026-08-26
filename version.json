@@ -1,7 +1,7 @@
 {
-  "version": "1.8.0",
-  "notes": "앱 이름을 '쿨브리핑'으로 변경하고 아이콘을 새 펭귄 캐릭터로 교체했습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.0/TeacherAlimjang_Setup_v1.8.0.exe",
-  "sha256": "29c637bea96dff67b3d9ce6df907548d73d6ff809b5b9b9ba2e2af08f32b6c41",
+  "version": "1.8.1",
+  "notes": "앱 이름과 아이콘을 '쿨브리핑'으로 새단장했습니다. 화면 크기에 따라 [일정] 화면의 학사일정 목록이 잘 안 보이던 문제도 함께 고쳤습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.1/TeacherAlimjang_Setup_v1.8.1.exe",
+  "sha256": "37ef66d164b8b90f1f63a511158623f9435bcd78d3ba414b6539619b553956b1",
   "release_date": "2026-08-26"
 }
