@@ -9,7 +9,7 @@ APP_NAME = "쿨브리핑"
 APP_DIR_NAME = "TeacherAlimjang"
 
 # 설치 프로그램(installer/setup.iss의 MyAppVersion)과 항상 맞춰서 올린다.
-APP_VERSION = "1.8.2"
+APP_VERSION = "1.8.3"
 # release.ps1이 배포할 때마다 그날 날짜로 자동 갱신한다 — 사이드바
 # 배지에 버전과 함께 표시된다.
 APP_RELEASE_DATE = "2026-08-26"
