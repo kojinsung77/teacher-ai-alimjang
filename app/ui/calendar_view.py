@@ -76,24 +76,31 @@ class CalendarView(QWidget):
         self.calendar.setHorizontalHeaderFormat(QCalendarWidget.ShortDayNames)
         self.calendar.selectionChanged.connect(self._render_selected_day)
         self.calendar.currentPageChanged.connect(self._mark_calendar_dates)
+        # QCalendarWidget 기본 정책은 세로 Expanding이라, 화면(창) 높이가
+        # 컴퓨터마다 다르면(_resize_to_screen()이 화면 해상도에 따라
+        # 900x600~1200x800 사이에서 창 크기를 정함) 캘린더 세로 크기도
+        # 그만큼 들쭉날쭉해진다 — 실측 결과 900x600 창에서는 214px,
+        # 1200x800 창에서는 414px까지 벌어졌다. Maximum으로 바꾸면 "남는
+        # 공간이 있어도 자기 고유 크기(사실상 최소 크기) 이상으로는
+        # 늘어나지 않게" 되어 화면 크기와 무관하게 항상 같은 높이(실측
+        # 199px)로 고정된다 — 날짜 칸이 작아지는 하한 걱정은 없다(상한만
+        # 걸 뿐 하한은 강제하지 않는데, 실측상 900x600 하한에서도 199px
+        # 그대로였다).
+        self.calendar.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
-        # 캘린더는 원래 크기 정책(세로로 늘어남)을 그대로 두고 — 날짜 칸이
-        # 작아져 숫자가 안 보이거나 클릭하기 불편해지는 걸 피하려는 것.
-        # 대신 아래 목록 쪽 높이를 내부 스크롤로 고정해서, 항목이 몇 개든
-        # 화면 전체 길이에는 영향을 주지 않게 한다.
         calendar_col = QVBoxLayout()
         calendar_col.setSpacing(16)
         calendar_col.addWidget(self.calendar)
 
         self.month_events_box = QFrame()
         self.month_events_box.setObjectName("Card")
-        # 안쪽 스크롤 영역이 세로로 늘어나는 정책(Expanding)을 갖고 있어서
-        # 그대로 두면 이 카드 자체도 늘어나려 해서 calendar_col 안에서
-        # 캘린더와 세로 공간을 반씩 나눠 갖고, 카드 아래쪽에 빈 여백만
-        # 남는다. Maximum으로 고정해 카드는 자기 내용(제목 + 최대 200px
-        # 스크롤)만큼만 차지하게 하고, 남는 세로 공간은 전부 캘린더가
-        # 흡수하게 한다 — 날짜 칸이 작아지지 않게 하려는 목적과도 맞다.
-        self.month_events_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        # 캘린더 높이를 고정했으니, 컴퓨터마다 남는(혹은 모자란) 세로
+        # 공간은 이제 이 카드가 흡수해야 한다 — Expanding으로 바꿔서
+        # calendar_col의 남는 공간을 이 카드가 가져가게 한다(기존
+        # Maximum 정책은 카드를 항상 자기 내용 크기로만 고정해서, 캘린더가
+        # 작아진 만큼 생기는 여유 공간이 목록이 아니라 빈 여백으로
+        # 버려졌다).
+        self.month_events_box.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         month_events_layout = QVBoxLayout(self.month_events_box)
         month_events_layout.setContentsMargins(18, 16, 18, 16)
         month_events_layout.setSpacing(10)
@@ -107,13 +114,18 @@ class CalendarView(QWidget):
         self.month_events_scroll = QScrollArea()
         self.month_events_scroll.setWidgetResizable(True)
         self.month_events_scroll.setFrameShape(QFrame.NoFrame)
-        self.month_events_scroll.setMaximumHeight(200)
+        # 예전엔 200을 상한이자 사실상 고정값으로 썼다(카드 자체가
+        # Maximum이라 늘 200 그대로였음). 이제 카드가 Expanding이라 남는
+        # 공간만큼 커질 수 있으니, 200은 "최소한 이만큼은 보장" 정도의
+        # 여유 있는 상한으로 올려 둔다 — 그래도 화면이 극단적으로 커지는
+        # 경우를 대비해 무한정 늘어나지는 않게 상한 자체는 유지한다.
+        self.month_events_scroll.setMaximumHeight(500)
         month_events_container = QWidget()
         self.month_events_list_layout = QVBoxLayout(month_events_container)
         self.month_events_list_layout.setContentsMargins(0, 0, 0, 0)
         self.month_events_list_layout.setSpacing(6)
         self.month_events_scroll.setWidget(month_events_container)
-        month_events_layout.addWidget(self.month_events_scroll)
+        month_events_layout.addWidget(self.month_events_scroll, 1)
 
         calendar_col.addWidget(self.month_events_box)
         content_row.addLayout(calendar_col, 2)

@@ -75,10 +75,6 @@ QPushButton {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 #5C80F8, stop:1 #7C92FF);
     border-radius: 14px;
-    color: white;
-    font-size: 20px;
-    font-weight: 900;
-    qproperty-alignment: AlignCenter;
 }}
 #SidebarTitle {{
     color: {COLORS['sidebar_text_active']};

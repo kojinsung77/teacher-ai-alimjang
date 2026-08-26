@@ -152,8 +152,12 @@ class MainWindow(QMainWindow):
 
         brand_row = QHBoxLayout()
         brand_row.setSpacing(12)
-        brand_icon = QLabel("✓")
+        brand_icon = QLabel()
         brand_icon.setObjectName("SidebarBrandIcon")
+        icon_path = config.icon_path()
+        if icon_path.exists():
+            brand_icon.setPixmap(QIcon(str(icon_path)).pixmap(40, 40))
+        brand_icon.setAlignment(Qt.AlignCenter)
         brand_icon.setFixedSize(44, 44)
         brand_row.addWidget(brand_icon)
 
