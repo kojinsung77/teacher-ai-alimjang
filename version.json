@@ -1,7 +1,7 @@
 {
-  "version": "1.8.3",
-  "notes": "앱 아이콘 이미지를 새로 다듬었습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.3/TeacherAlimjang_Setup_v1.8.3.exe",
-  "sha256": "21d204c2593a02a2566d0b0d6eece8f9b78967f548e22b2604da934f38504ded",
-  "release_date": "2026-08-26"
+  "version": "1.8.4",
+  "notes": "컴퓨터를 켤 때 앱이 자동 실행되면 창이 화면에 보이지 않던 문제를 고쳤습니다. 이제 자동 실행 시 창이 정상적으로 나타납니다. (설정 > 일반에서 '시스템 트레이에서 실행'을 직접 켠 경우에는 계속 트레이에서 시작합니다.)",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.4/TeacherAlimjang_Setup_v1.8.4.exe",
+  "sha256": "0692868bf33ba6e3b4fd64486833ecb70421b5633ddb73ffb01ea31d8865be4c",
+  "release_date": "2026-08-27"
 }
