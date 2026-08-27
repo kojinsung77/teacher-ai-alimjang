@@ -82,14 +82,21 @@ def main():
     guard.showRequested.connect(window.show_and_activate)
 
     if is_autostart:
-        # Windows 로그인 자동 실행 — 창을 띄우지 않고 트레이에서 조용히
-        # 시작한다. 최초 설정이 아직 안 끝난 상태로 자동 시작될 일은
-        # 없지만(자동 시작은 최초 설정을 마친 뒤 사용자가 직접 켜는
-        # 옵션이므로), 방어적으로 그런 경우엔 그냥 창을 보여준다.
-        if db.get_setting(SETUP_DONE_KEY) == "1":
+        # Windows 로그인 자동 실행. 사용자가 설정 > 일반에서 "시스템
+        # 트레이에서 실행"(autostart_hide_window)을 명시적으로 켠 경우에만
+        # 창을 띄우지 않고 트레이에서 조용히 시작한다. 그 외(기본값 포함,
+        # DB에 키가 아예 없는 경우)에는 창을 화면 맨 앞으로 띄운다 —
+        # 이 옵션을 안 만졌는데도 자동 실행 시 창이 안 보이던 문제를 막는다.
+        # 최초 설정이 아직 안 끝난 상태로 자동 시작될 일은 없지만(자동
+        # 시작은 최초 설정을 마친 뒤 켜지는 옵션이므로), 방어적으로 그런
+        # 경우엔 그냥 창을 보여준다.
+        if (
+            db.get_setting(SETUP_DONE_KEY) == "1"
+            and db.get_setting("autostart_hide_window", "0") == "1"
+        ):
             window.start_hidden_in_tray()
         else:
-            window.show()
+            window.show_and_activate()
     else:
         window.show()
 

@@ -101,7 +101,7 @@ class _SettingsFormMixin:
 
         self.autostart_hide_check = QCheckBox("Windows 시작 시 시스템 트레이에서 실행")
         self.autostart_hide_check.setChecked(
-            db.get_setting("autostart_hide_window", "1") == "1"
+            db.get_setting("autostart_hide_window", "0") == "1"
         )
         self.autostart_hide_check.setEnabled(self.autostart_check.isChecked())
         v.addWidget(self.autostart_hide_check)
