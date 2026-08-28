@@ -1,7 +1,7 @@
 {
-  "version": "1.8.4",
-  "notes": "컴퓨터를 켤 때 앱이 자동 실행되면 창이 화면에 보이지 않던 문제를 고쳤습니다. 이제 자동 실행 시 창이 정상적으로 나타납니다. (설정 > 일반에서 '시스템 트레이에서 실행'을 직접 켠 경우에는 계속 트레이에서 시작합니다.)",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.4/TeacherAlimjang_Setup_v1.8.4.exe",
-  "sha256": "0692868bf33ba6e3b4fd64486833ecb70421b5633ddb73ffb01ea31d8865be4c",
-  "release_date": "2026-08-27"
+  "version": "1.8.5",
+  "notes": "업데이트를 설치할 때 화면이 잠깐 깜빡이던 문제를 고쳤습니다.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.5/TeacherAlimjang_Setup_v1.8.5.exe",
+  "sha256": "880d8b3f89326cd20699130e887cdf97defc3c6e67550ca3e8c36bddb1073025",
+  "release_date": "2026-08-28"
 }
