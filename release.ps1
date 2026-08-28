@@ -24,9 +24,17 @@
 # 옵션이다. 확인 후 같은 버전으로 -SkipPublish 없이 다시 실행하면(빌드는
 # 이미 끝났어도 재빌드 자체는 멱등이라 문제없다) 이어서 배포까지 끝난다.
 #
+# -IconChanged를 주면 이번 릴리스의 설치 프로그램이 설치 마지막에
+# 탐색기(explorer.exe)를 재시작해 아이콘 캐시를 확실히 비운다(화면이 한 번
+# 깜빡임). 앱 아이콘 파일(app/ui/assets/app_icon.ico 등)을 이번 릴리스에서
+# 실제로 바꿨을 때만 사용한다. 옵션을 안 주면(=대부분의 릴리스) 화면에
+# 영향 없는 가벼운 캐시 갱신만 한다. 자세한 배경은 installer/setup.iss
+# 상단의 IconChanged #define 주석 참고.
+#
 # 사용법: 프로젝트 루트에서 실행
 #   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "이번 버전에서 고친 내용"
 #   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "..." -SkipPublish
+#   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "..." -IconChanged   # 아이콘을 바꾼 릴리스일 때만
 
 param(
     [Parameter(Mandatory = $true)]
@@ -35,7 +43,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Notes,
 
-    [switch]$SkipPublish
+    [switch]$SkipPublish,
+
+    [switch]$IconChanged
 )
 
 $GhOwner = "kojinsung77"
@@ -89,7 +99,12 @@ Write-Output "완료"
 
 # ---------- 3) build.ps1로 클린 빌드 (PyInstaller + Inno Setup) ----------
 Write-Step "3/6  build.ps1 클린 빌드"
-& (Join-Path $root "build.ps1")
+if ($IconChanged) {
+    Write-Output "※ -IconChanged: 이번 빌드의 설치 프로그램은 설치 마지막에 탐색기를 재시작합니다(아이콘 캐시 확실히 갱신, 화면이 한 번 깜빡임)."
+    & (Join-Path $root "build.ps1") -IconChanged
+} else {
+    & (Join-Path $root "build.ps1")
+}
 if ($LASTEXITCODE -ne 0) { throw "build.ps1 실패 (exit $LASTEXITCODE)" }
 
 $setupPath = Get-ChildItem (Join-Path $root "installer\output\*.exe") | Sort-Object LastWriteTime -Descending | Select-Object -First 1

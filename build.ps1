@@ -13,9 +13,16 @@
 #
 # 실행 파일만 필요하면(설치 프로그램 없이): -SkipInstaller
 #   powershell -ExecutionPolicy Bypass -File build.ps1 -SkipInstaller
+#
+# 앱 아이콘 파일을 이번 릴리스에서 실제로 바꿨을 때만: -IconChanged
+#   powershell -ExecutionPolicy Bypass -File build.ps1 -IconChanged
+#   -> 설치 프로그램이 설치 마지막에 탐색기(explorer.exe)를 재시작해 아이콘
+#      캐시를 확실히 비운다(화면이 한 번 깜빡임). 옵션을 안 주면 화면에
+#      영향 없는 가벼운 캐시 갱신만 한다. ISCC에 /DIconChanged=1로 전달된다.
 
 param(
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$IconChanged
 )
 
 $ErrorActionPreference = "Stop"
@@ -90,7 +97,15 @@ if (-not $iscc) {
 
 Push-Location (Join-Path $root "installer")
 try {
-    & $isccPath "setup.iss"
+    $isccArgs = @()
+    if ($IconChanged) {
+        $isccArgs += "/DIconChanged=1"
+        Write-Output "아이콘 변경 모드(-IconChanged): 설치 마지막에 탐색기를 재시작해 아이콘 캐시를 확실히 갱신합니다(화면이 한 번 깜빡임)."
+    } else {
+        Write-Output "기본 모드: 가벼운 아이콘 캐시 갱신만(SHChangeNotify + ie4uinit). 탐색기는 건드리지 않습니다."
+    }
+    $isccArgs += "setup.iss"
+    & $isccPath @isccArgs
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup 컴파일 실패 (exit $LASTEXITCODE)" }
 } finally {
     Pop-Location

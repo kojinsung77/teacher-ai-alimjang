@@ -27,6 +27,27 @@
 #define MyAppExeName "TeacherAlimjang.exe"
 #define MyAppId "{{0D2E7F2C-B6D4-45CF-9D4B-79DAAAF99FAB}"
 
+; ---- 아이콘 캐시 새로고침 강도 (컴파일 타임 옵션) ----
+; 0 (기본값) = 설치/업데이트 시 화면에 아무 영향 없는 "가벼운 방법"만 실행:
+;              SHChangeNotify + ie4uinit.exe -ClearIconCache.
+; 1          = 위에 더해 탐색기(explorer.exe)를 강제로 재시작해 아이콘 캐시를
+;              확실히 비운다. 바탕화면·작업표시줄이 잠깐 사라졌다 다시 그려지며
+;              화면이 한 번 깜빡이는 부작용이 있으므로, 앱 아이콘 파일이 실제로
+;              바뀐 릴리스에서만 켠다.
+;
+; 켜는 방법: release.ps1 -IconChanged  (또는 build.ps1 -IconChanged /
+;            ISCC 직접 실행 시 /DIconChanged=1). 아무 옵션도 안 주면 0.
+;
+; 배경: v1.8.2에서 "아이콘을 바꿨는데 다른 선생님 컴퓨터의 탐색기가 옛 아이콘을
+;       계속 보여준다"는 문제 때문에 매 설치마다 탐색기를 재시작하도록 넣었는데,
+;       아이콘과 무관한 버그 수정/기능 추가 릴리스(대부분이 여기 해당)에서도
+;       똑같이 탐색기가 재시작돼 설치할 때마다 화면이 깜빡인다는 보고가 있었다.
+;       그래서 "매번"이 아니라 "아이콘이 실제로 바뀔 때만" 무거운 방법을 쓰도록
+;       이 옵션으로 분리했다.
+#ifndef IconChanged
+  #define IconChanged 0
+#endif
+
 [Setup]
 ; AppId는 고정 GUID — 버전이 올라가도 같은 프로그램으로 인식되어
 ; "업데이트/재설치" 흐름(참고 이미지 1번의 "이미 설치되어 있습니다")이 동작한다.
@@ -290,26 +311,40 @@ end;
   경우가 섞여 나와서 milder 단계만으로 됐다고 성급히 결론 내리기
   위험했다), 세 가지를 전부 포함한 조합을 "재현된 stale 상태 -> 이
   설치 프로그램의 자동 실행 -> 수동 개입 없이 새 아이콘 확인"까지
-  엔드투엔드로 반복 검증했다. 탐색기 재시작은 사용자가 열어둔 탐색기
-  창들이 잠깐 닫혔다 다시 뜨는 부작용이 있지만(열려 있던 폴더들은
-  자동으로 다시 열린다), 자동 업데이트가 조용히(/SILENT) 실행되는 이
-  앱의 특성상 사람이 수동으로 캐시를 정리해줄 걸 기대할 수 없으므로
-  확실한 쪽(세 단계 전부)을 택했다. }
+  엔드투엔드로 반복 검증했다.
+
+  다만 탐색기 재시작은 바탕화면·작업표시줄이 잠깐 사라졌다 다시 그려지며
+  화면이 한 번 깜빡이는 부작용이 있다. v1.8.2~v1.8.4에서는 아이콘과
+  무관한 업데이트(자동 시작 버그 수정 등)에서도 매번 탐색기를 재시작해
+  설치할 때마다 화면이 깜빡인다는 보고가 있었다. 그래서 아래처럼
+  컴파일 타임 옵션 IconChanged로 나눴다:
+    - 기본(IconChanged=0): 가벼운 방법(SHChangeNotify + ie4uinit)만.
+      화면에 아무 영향 없음. 앞으로 나올 대부분의 릴리스가 여기 해당.
+    - IconChanged=1 (release.ps1 -IconChanged): 위에 더해 탐색기 재시작.
+      앱 아이콘 파일을 실제로 바꾼 릴리스에서만 사용.
+  파일 상단의 IconChanged #define 주석 참고. }
 procedure RefreshShellIconCache();
 var
   ResultCode: Integer;
 begin
+  { 가벼운 방법 — 화면에 아무 영향 없음. 모든 설치/업데이트에서 항상 실행. }
   SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST or SHCNF_FLUSH, 0, 0);
   Exec(ExpandConstant('{sys}\ie4uinit.exe'), '-ClearIconCache', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode);
-  { taskkill으로 종료하면 explorer.exe가 대개 자동으로 재시작되지만,
-    항상 그런 건 아니므로(일부 Windows 빌드/설정) 명시적으로 다시
-    띄워 둔다 — 이미 떠 있으면 중복 실행되지 않고 그냥 무시된다. }
+#if IconChanged
+  { 무거운 방법 — 아이콘 파일이 실제로 바뀐 릴리스(-IconChanged 빌드)에서만.
+    taskkill으로 종료하면 explorer.exe가 대개 자동으로 재시작되지만, 항상
+    그런 건 아니므로(일부 Windows 빌드/설정) 명시적으로 다시 띄워 둔다 —
+    이미 떠 있으면 무시된다. 이 단계에서 화면이 한 번 깜빡인다. }
+  Log('RefreshShellIconCache: 아이콘 변경 릴리스 — 탐색기(explorer.exe)를 재시작합니다.');
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM explorer.exe', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(500);
   Exec(ExpandConstant('{win}\explorer.exe'), '', '', SW_SHOWNORMAL,
     ewNoWait, ResultCode);
+#else
+  Log('RefreshShellIconCache: 아이콘 변경 없는 릴리스 — 가벼운 방법만 실행하고 탐색기는 건드리지 않습니다.');
+#endif
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
