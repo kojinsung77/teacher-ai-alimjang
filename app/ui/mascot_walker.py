@@ -57,7 +57,9 @@ def _user_is_presenting() -> bool:
         # 1 NOT_PRESENT(잠금·화면보호기) 2 BUSY(전체화면 앱)
         # 3 RUNNING_D3D_FULL_SCREEN(전체화면 게임·동영상) 4 PRESENTATION_MODE
         # 5 ACCEPTS_NOTIFICATIONS 6 QUIET_TIME 7 APP(전체화면 스토어 앱)
-        return state.value in (1, 2, 3, 4, 7)
+        # Windows가 "지금 알림 받아도 됨"(5)이라고 답할 때만 띄운다 —
+        # 나중에 Windows에 새 상태값이 생겨도 안전한 쪽(안 띄움)으로 간다.
+        return state.value != 5
     except Exception:
         return False
 
@@ -85,6 +87,7 @@ class MascotWalker(QWidget):
 
         self._frame_index = 0
         self._paused = False
+        self._pressed = False
         self._x = 0.0
 
         self._move_timer = QTimer(self)
@@ -194,8 +197,17 @@ class MascotWalker(QWidget):
         self._paused = False
         self.update()
 
-    def mouseReleaseEvent(self, event):
+    def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
+            self._pressed = True
+
+    def mouseReleaseEvent(self, event):
+        # 누름과 뗌이 둘 다 마스코트 위에서 일어나야 클릭으로 본다 — 다른
+        # 곳에서 누르고 끌어오다 마스코트 위에서 뗀 것까지 클릭으로 치면
+        # 선생님 의도와 상관없이 앱 창이 튀어나올 수 있다.
+        pressed, self._pressed = self._pressed, False
+        if (event.button() == Qt.LeftButton and pressed
+                and self.rect().contains(event.position().toPoint())):
             self.clicked.emit()
             self.close()
 
