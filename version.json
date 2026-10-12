@@ -1,7 +1,7 @@
 {
-  "version": "1.11.0",
-  "notes": "새 버전이 나오면 화면 가운데에서 알려 줍니다. [지금 업데이트]를 누르면 바로 설치됩니다",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.11.0/TeacherAlimjang_Setup_v1.11.0.exe",
-  "sha256": "8f8e322fb52c8663994c0dbb91c0dfabb75f64f26ef911e10deb2b52c43bc1a9",
+  "version": "1.12.0",
+  "notes": "파랑새가 더 작아지고 클릭할 때까지 화면 아래를 왔다 갔다 합니다. 아침에 켤 때와 잠금을 풀 때도 알려 줍니다. 업데이트를 미루면 다시 켤 때 또 알려 줍니다",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.12.0/TeacherAlimjang_Setup_v1.12.0.exe",
+  "sha256": "15f2658fc6e1b6298635553451313c4b38b645ce8d0ccc5627f3737214c3d420",
   "release_date": "2026-10-12"
 }
