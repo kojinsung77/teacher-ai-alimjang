@@ -131,12 +131,13 @@ class _SettingsFormMixin:
         )
         v.addWidget(self.auto_note_check)
 
-        self.mascot_check = QCheckBox("점심·퇴근 전 마스코트 알림")
+        self.mascot_check = QCheckBox("파랑새 알림 (켤 때·잠금 해제·13:20·16:10)")
         self.mascot_check.setChecked(db.get_setting("mascot_enabled", "1") == "1")
         self.mascot_check.setToolTip(
-            "13:20과 16:10에 할 일이 남아 있으면 파랑새가 화면 아래를 걸어가며 알려줍니다.\n"
-            "누르면 프로그램이 열립니다. 발표·전체화면 중에는 나오지 않습니다.\n"
-            "꺼두어도 오른쪽 아래 알림은 그대로 옵니다."
+            "할 일이 남아 있으면 아침에 프로그램이 처음 켜질 때, 화면 잠금을 풀 때,\n"
+            "13:20과 16:10에 파랑새가 화면 아래를 왔다 갔다 하며 알려줍니다.\n"
+            "누르면 프로그램이 열리고, 오른쪽 클릭하면 그냥 닫힙니다.\n"
+            "발표·전체화면 중에는 숨어 있습니다. 꺼두어도 오른쪽 아래 알림은 그대로 옵니다."
         )
         v.addWidget(self.mascot_check)
 

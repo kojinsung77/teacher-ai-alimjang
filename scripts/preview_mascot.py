@@ -7,11 +7,12 @@
     python scripts/preview_mascot.py          # "오늘 할 일 3건!"
     python scripts/preview_mascot.py 7        # 숫자 바꿔 보기
 
-주 모니터 왼쪽 끝에 바로 나타나 오른쪽으로 걷고, 오른쪽 끝에 닿으면
-멈춰 서서 기다린다(사라지지 않는다). 마스코트를 누르면 "클릭됨"이
-출력되고 끝난다(실제 앱에서는 이때 창이 열린다). 마우스를 올리면 멈춰
-서는지, 속도가 적당한지 확인용. 빨리 끝까지 보려면 두 번째 인자로 속도
-배수를 준다: python scripts/preview_mascot.py 3 10"""
+주 모니터 왼쪽 끝에 바로 나타나 오른쪽으로 걷고, 끝에 닿으면 뒤돌아
+반대쪽으로 — 클릭할 때까지 계속 왔다 갔다 한다. 파랑새를 누르면 "클릭됨",
+오른쪽 클릭하면 "닫힘"이 출력되고 끝난다(실제 앱에서는 클릭 때 창이
+열린다). 마우스를 올리면 멈춰 서는지, 크기·속도가 적당한지 확인용. 빨리
+왕복까지 보려면 두 번째 인자로 속도 배수를 준다: python scripts/preview_mascot.py 3 10
+"""
 
 import sys
 from pathlib import Path
@@ -39,6 +40,7 @@ def main():
     print(f"[TEST] 발표·전체화면 중인가? {not mascot_walker.can_show_now()}")
     w = mascot_walker.MascotWalker(TEST_COUNT)
     w.clicked.connect(lambda: print("클릭됨 — 실제 앱에서는 여기서 창이 열립니다"))
+    w.dismissed.connect(lambda: print("닫힘(오른쪽 클릭) — 앱은 열지 않습니다"))
     w.destroyed.connect(app.quit)
     w.start()
     sys.exit(app.exec())

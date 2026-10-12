@@ -83,7 +83,9 @@ class UpdateModal(QFrame):
         self.download_btn.clicked.connect(self.download_requested.emit)
         btn_row.addWidget(self.download_btn)
 
-        dismiss_btn = QPushButton("다시 안보기")
+        # 예전엔 '다시 안보기'(영구 무시)였다. 업데이트를 안 하면 컴퓨터를
+        # 다시 켤 때 또 알려야 해서, 이번 실행 동안만 숨기는 [나중에]로 바꿨다.
+        dismiss_btn = QPushButton("나중에")
         dismiss_btn.setObjectName("SecondaryButton")
         dismiss_btn.setCursor(Qt.PointingHandCursor)
         dismiss_btn.clicked.connect(self.dismiss_requested.emit)

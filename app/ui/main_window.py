@@ -139,8 +139,13 @@ _UNLOCK_UPDATE_POPUP_DELAY_MS = 3000
 # 앱이 하루 종일 트레이에 켜져 있어도 낮에 나온 새 버전을 알 수 있도록
 # 이 간격마다 version.json을 다시 확인한다.
 _UPDATE_RECHECK_INTERVAL_MS = 2 * 60 * 60 * 1000
-# 화면 가운데 업데이트 카드에서 [나중에]를 누른 버전·날짜("1.11.0|2026-10-12")
-_SETTING_UPDATE_POPUP_SNOOZE = "update_popup_snooze"
+# 아침에 앱이 처음 켜졌을 때 파랑새를 내보내기까지 기다리는 시간(ms) —
+# 로그인 직후 바탕화면·작업표시줄이 다 그려진 뒤에 나오게.
+_STARTUP_MASCOT_DELAY_MS = 8000
+# "오늘 앱이 처음 켜질 때 파랑새를 이미 내보냈다"는 날짜(YYYY-MM-DD).
+# 업데이트 설치 뒤 자동 재시작 등으로 같은 날 다시 켜질 때는 또 나오지
+# 않게 한다(그날 잠금 해제·정기 알림 때는 그대로 나온다).
+_SETTING_MASCOT_STARTUP_DATE = "mascot_startup_date"
 
 
 class MainWindow(QMainWindow):
@@ -342,6 +347,12 @@ class MainWindow(QMainWindow):
         self._setup_tray_icon()
         self._start_update_check()
 
+        # 아침에 컴퓨터를 켜서 앱이 처음 뜨면 파랑새가 한 번 걸어 나온다.
+        QTimer.singleShot(_STARTUP_MASCOT_DELAY_MS, self._maybe_startup_mascot)
+        # 걸어 다니는 파랑새의 말풍선 건수를 1분마다 최신으로 맞춘다
+        # (다 처리해서 0건이 되면 파랑새가 스스로 사라진다).
+        self._reminder_timer.timeout.connect(self._refresh_mascot_count)
+
         # ---- 자동 메시지 확인 타이머 ----
         self._auto_sync_thread = None
         self._auto_sync_timer = QTimer(self)
@@ -468,8 +479,8 @@ class MainWindow(QMainWindow):
         if not info:
             return
         version = info.get("version", "")
-        if update_check.is_version_ignored(version):
-            return
+        # 예전 버전의 [다시 안보기]로 DB에 남은 무시 기록은 더 이상 보지
+        # 않는다 — 업데이트를 안 하면 컴퓨터를 다시 켤 때마다 알려야 한다.
         same_as_pending = (
             self._pending_update_info is not None
             and self._pending_update_info.get("version") == version
@@ -482,9 +493,10 @@ class MainWindow(QMainWindow):
             # 이미 받아 뒀거나 받는 중이므로 다시 받지 않는다.
             self._start_update_download(info)
 
-        if self._update_popup_snoozed_today(version):
-            # 오늘 [나중에]를 눌렀다 — 가운데 카드는 내일 다시 띄우고, 앱
-            # 창 안의 카드만 보여 둔다(앱을 열면 거기서 업데이트 가능).
+        if self._update_popup_snoozed(version):
+            # 이번 실행 중에 [나중에]를 눌렀다 — 가운데 카드는 컴퓨터를
+            # 다시 켜서 앱이 새로 뜰 때 다시 띄우고, 지금은 앱 창 안의
+            # 카드만 보여 둔다(앱을 열면 거기서 업데이트 가능).
             self._show_in_app_update_modal(info)
             return
         if self.update_popup.isVisible():
@@ -502,10 +514,11 @@ class MainWindow(QMainWindow):
         if self._install_after_download:
             self.update_modal.set_waiting(True)
 
-    def _update_popup_snoozed_today(self, version: str) -> bool:
-        return db.get_setting(_SETTING_UPDATE_POPUP_SNOOZE, "") == (
-            f"{version}|{date.today().isoformat()}"
-        )
+    def _update_popup_snoozed(self, version: str) -> bool:
+        """[나중에]는 이번 실행 동안만 유효하다(메모리에만 기억). DB에
+        남기지 않으므로 업데이트를 안 한 채 컴퓨터를 끄고 켜면 앱이 새로
+        뜨면서 가운데 카드가 다시 나온다."""
+        return getattr(self, "_update_snoozed_version", None) == version
 
     def _maybe_show_update_popup(self):
         """가운데 업데이트 카드를 띄울 차례면 띄운다. 화면이 잠겨 있거나
@@ -516,7 +529,7 @@ class MainWindow(QMainWindow):
         if not self._update_popup_waiting or self._pending_update_info is None:
             return
         info = self._pending_update_info
-        if self._update_popup_snoozed_today(info.get("version", "")):
+        if self._update_popup_snoozed(info.get("version", "")):
             self._update_popup_waiting = False
             return
         if self._screen_locked or not mascot_walker.can_show_now():
@@ -538,16 +551,18 @@ class MainWindow(QMainWindow):
             self._show_in_app_update_modal(info)
 
     def _on_update_popup_later(self):
-        """가운데 카드의 [나중에]/✕ — 오늘은 다시 안 띄우고, 앱 창 안의
-        카드로만 남겨 둔다. 내일 다시 확인하면 가운데 카드가 또 뜬다.
-        버그 수정이 담긴 업데이트를 영영 놓치지 않도록 여기서는 '다시 안
-        보기'(영구 무시)를 하지 않는다."""
+        """가운데 카드의 [나중에]/✕ — 이번 실행 동안은 다시 안 띄우고, 앱
+        창 안의 카드로만 남겨 둔다. 업데이트를 안 한 채 컴퓨터를 껐다
+        켜면(앱이 새로 뜨면) 가운데 카드가 다시 나온다. 버그 수정이 담긴
+        업데이트를 영영 놓치지 않도록 '다시 안 보기'(영구 무시)는 없다."""
         self.update_popup.hide()
         self._update_popup_waiting = False
         if self._pending_update_info is not None:
             version = self._pending_update_info.get("version", "")
-            db.set_setting(_SETTING_UPDATE_POPUP_SNOOZE, f"{version}|{date.today().isoformat()}")
-            update_check.log_update_event(f"[가운데 카드] 나중에 — 버전={version}, 오늘은 다시 안 띄움")
+            self._update_snoozed_version = version
+            update_check.log_update_event(
+                f"[가운데 카드] 나중에 — 버전={version}, 앱을 다시 켤 때까지 안 띄움"
+            )
             self._show_in_app_update_modal(self._pending_update_info)
 
     def _start_update_download(self, info: dict):
@@ -615,12 +630,11 @@ class MainWindow(QMainWindow):
             update_check.log_update_event("[업데이트 다운로드] 클릭 — 이미 진행 중인 다운로드를 기다림")
 
     def _on_update_dismiss_clicked(self):
-        """새 버전 안내 카드의 [다시 안보기] 클릭 — 이 버전은 무시 처리해서
-        다음 확인부터 다시 안 뜨게 한다(더 새 버전이 나오면 그때는 다시
-        뜬다, update_check.is_version_ignored() 참고). ✕(닫기)와 달리
-        여기서만 무시 처리를 한다."""
+        """앱 창 안 새 버전 카드의 [나중에] — 예전엔 '다시 안보기'(영구
+        무시)였지만, 업데이트를 안 하면 컴퓨터를 다시 켤 때 또 알려야 해서
+        가운데 카드의 [나중에]와 똑같이 이번 실행 동안만 숨긴다."""
         if self._pending_update_info is not None:
-            update_check.set_ignored_version(self._pending_update_info.get("version", ""))
+            self._update_snoozed_version = self._pending_update_info.get("version", "")
         self.update_modal.hide()
         self.update_popup.hide()
         self._update_popup_waiting = False
@@ -923,11 +937,15 @@ class MainWindow(QMainWindow):
             return
         self._mascot_pending_date = None
         old = getattr(self, "_mascot", None)
-        if old is not None:
+        if old is not None and old.is_active():
+            # 이미 화면을 왔다 갔다 하고 있다(클릭할 때까지 안 사라지므로
+            # 흔한 일) — 새로 만들어 왼쪽 끝으로 순간이동시키지 말고 건수만
+            # 맞춘다. 발표·잠금 때문에 잠깐 숨어 있었다면 스스로 다시 나온다.
             try:
-                old.close()
+                old.set_count(count)
+                return
             except RuntimeError:
-                pass  # 이미 정리된 위젯 — 무시하고 새로 띄운다
+                self._mascot = None  # 이미 정리된 위젯 — 새로 띄운다
         try:
             walker = mascot_walker.MascotWalker(count)
             walker.clicked.connect(self._on_mascot_clicked)
@@ -982,6 +1000,34 @@ class MainWindow(QMainWindow):
             self._mascot_pending_date = None
             return
         self._start_mascot(count)  # 출발하면 여기서 대기가 지워진다
+
+    def _maybe_startup_mascot(self):
+        """아침에 컴퓨터를 켜서 앱이 그날 처음 뜨면 파랑새를 한 번 내보낸다.
+        같은 날 다시 켜질 때(업데이트 뒤 자동 재시작 등)는 안 나온다.
+        로그인 직후엔 Windows가 잠깐 '자리 비움'으로 답할 수 있어 잠금
+        해제 때와 같은 재시도 경로를 쓴다."""
+        today = date.today().isoformat()
+        if db.get_setting(_SETTING_MASCOT_STARTUP_DATE, "") == today:
+            return
+        db.set_setting(_SETTING_MASCOT_STARTUP_DATE, today)
+        self._unlock_mascot_seq = getattr(self, "_unlock_mascot_seq", 0) + 1
+        self._show_mascot_after_unlock(self._unlock_mascot_seq, 1)
+
+    def _refresh_mascot_count(self):
+        """1분마다 — 걸어 다니는 파랑새가 있으면 말풍선 건수를 최신으로
+        맞춘다(0건이면 파랑새가 스스로 사라진다)."""
+        walker = getattr(self, "_mascot", None)
+        if walker is None:
+            return
+        try:
+            if not walker.is_active():
+                self._mascot = None
+                return
+            walker.set_count(len(stats.todo_tasks()))
+        except RuntimeError:
+            self._mascot = None
+        except Exception:
+            traceback.print_exc()
 
     def _on_screen_locked(self):
         self._screen_locked = True
