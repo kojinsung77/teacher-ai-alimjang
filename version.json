@@ -1,7 +1,7 @@
 {
-  "version": "1.8.5",
-  "notes": "업데이트를 설치할 때 화면이 잠깐 깜빡이던 문제를 고쳤습니다.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.8.5/TeacherAlimjang_Setup_v1.8.5.exe",
-  "sha256": "880d8b3f89326cd20699130e887cdf97defc3c6e67550ca3e8c36bddb1073025",
-  "release_date": "2026-08-28"
+  "version": "1.9.0",
+  "notes": "점심(13:20)·퇴근 전(16:10) 알림 때 파랑새 마스코트가 화면 아래를 걸어가며 오늘 할 일 건수를 알려줍니다. 마스코트를 누르면 쿨브리핑 '오늘' 화면이 열립니다. 전체화면·발표 중에는 나타나지 않으며, 설정 > 일반에서 끌 수 있습니다(트레이 알림은 그대로).",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.9.0/TeacherAlimjang_Setup_v1.9.0.exe",
+  "sha256": "a2813969b07578ba42bc594a19c75b6daab98611748b0602b48b5643e784bfd3",
+  "release_date": "2026-10-12"
 }

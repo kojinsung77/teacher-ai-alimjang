@@ -9,10 +9,10 @@ APP_NAME = "쿨브리핑"
 APP_DIR_NAME = "TeacherAlimjang"
 
 # 설치 프로그램(installer/setup.iss의 MyAppVersion)과 항상 맞춰서 올린다.
-APP_VERSION = "1.8.5"
+APP_VERSION = "1.9.0"
 # release.ps1이 배포할 때마다 그날 날짜로 자동 갱신한다 — 사이드바
 # 배지에 버전과 함께 표시된다.
-APP_RELEASE_DATE = "2026-08-28"
+APP_RELEASE_DATE = "2026-10-12"
 
 # [업데이트 확인]의 [다운로드 페이지 열기] 버튼이 여는 주소 — 사람이 직접
 # 파일을 받는 페이지다. 자동으로 다운로드·설치하지 않는 게 이 프로젝트
@@ -78,6 +78,7 @@ def spin_arrow_icon_path(direction: str) -> Path:
     빌드 시 _MEIPASS 기준 경로를 쓴다."""
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     return base / "app" / "ui" / "assets" / f"spin_{direction}_arrow.png"
+
 
 KEYRING_SERVICE = "TeacherAlimjang"
 KEYRING_USERNAME = "gemini_api_key"
