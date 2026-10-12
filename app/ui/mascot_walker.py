@@ -34,7 +34,7 @@ import sys
 
 from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QColor, QFont, QFontMetrics, QGuiApplication, QImage, QLinearGradient,
+    QColor, QCursor, QFont, QFontMetrics, QGuiApplication, QImage, QLinearGradient,
     QPainter, QPainterPath, QPen, QPixmap,
 )
 from PySide6.QtWidgets import QWidget
@@ -292,7 +292,13 @@ class MascotWalker(QWidget):
 
     def _on_move_tick(self):
         elapsed_ms = self._clock.restart()
-        if self._hidden_for_presenting or self._hover:
+        if self._hidden_for_presenting:
+            return
+        # 걷는 파랑새가 가만히 있는 마우스 밑으로 들어오면 Windows가 마우스
+        # 이동 이벤트를 보내 주지 않아 그대로 지나가 버린다 — 커서 위치를
+        # 직접 보고 멈춘다.
+        self._set_hover(self._hit(self.mapFromGlobal(QCursor.pos())))
+        if self._hover:
             return
         if self._turn_wait_ms > 0:
             self._turn_wait_ms -= elapsed_ms
