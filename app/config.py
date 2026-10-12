@@ -71,6 +71,15 @@ def spin_arrow_icon_path(direction: str) -> Path:
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     return base / "app" / "ui" / "assets" / f"spin_{direction}_arrow.png"
 
+
+def mascot_asset_dir() -> Path:
+    """마스코트(파랑새) 알림 이미지 폴더(걷기 프레임·말풍선·layout.json,
+    app/ui/mascot_walker.py 참고). PyInstaller onefile 빌드 시 _MEIPASS
+    기준 경로를 쓴다 — TeacherAlimjang.spec의 datas에도 이 폴더가 있어야
+    배포판에서 마스코트가 뜬다."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / "app" / "ui" / "assets" / "mascot"
+
 KEYRING_SERVICE = "TeacherAlimjang"
 KEYRING_USERNAME = "gemini_api_key"
 

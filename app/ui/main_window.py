@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from .. import config, db
 from ..core import autostart, daily_note, holidays_sync, stats, task_manager, update_check
 from .common_widgets import Toast
+from .mascot_walker import MascotWalker, desktop_accepts_notifications
 from .update_modal import UpdateModal
 from .dashboard_view import DashboardView
 from .task_list_view import TaskListView
@@ -281,6 +282,9 @@ class MainWindow(QMainWindow):
         self._reminder_timer = QTimer(self)
         self._reminder_timer.timeout.connect(self._check_daily_reminders)
         self._reminder_timer.start(60 * 1000)  # 1분마다 확인
+        # 정기 알림 때 화면 아래를 걸어가는 마스코트(app/ui/mascot_walker.py).
+        # 걷는 동안 참조를 들고 있어야 가비지 컬렉션으로 사라지지 않는다.
+        self._mascot = None
 
         self._setup_tray_icon()
         self._start_update_check()
@@ -728,6 +732,46 @@ class MainWindow(QMainWindow):
             count = len(stats.todo_tasks())
             if count >= 1:
                 self._show_reminder_notification(template.format(n=count))
+                self._maybe_start_mascot(count)
+
+    def _maybe_start_mascot(self, count: int):
+        """정기 알림과 같은 순간 마스코트를 출발시킨다. 트레이 알림은
+        _show_reminder_notification이 이미 보냈으므로, 여기서 건너뛰는
+        경우에도 알림 자체는 빠지지 않는다.
+
+        건너뛰는 경우: 설정에서 끈 경우(mascot_alert_enabled="0"), 그리고
+        전체화면 앱·발표(PPT 슬라이드쇼)·전체화면 동영상·화면 잠금 등
+        Windows가 "지금은 알림 받을 상태가 아님"이라고 답하는 경우."""
+        if db.get_setting("mascot_alert_enabled", "1") != "1":
+            return
+        if not desktop_accepts_notifications():
+            return
+        self._start_mascot(count)
+
+    def _start_mascot(self, count: int):
+        """조건 확인 없이 바로 출발시킨다. 이미 걷는 중이면 그건 치우고
+        새로 출발한다."""
+        if self._mascot is not None:
+            self._mascot.finished.disconnect(self._on_mascot_finished)
+            self._mascot.close()
+            self._mascot = None
+        mascot = MascotWalker(count)
+        if not mascot.is_ready():  # 이미지 파일을 못 읽은 경우 — 조용히 생략
+            mascot.deleteLater()
+            return
+        mascot.clicked.connect(self._on_mascot_clicked)
+        mascot.finished.connect(self._on_mascot_finished)
+        self._mascot = mascot
+        mascot.start()
+
+    def _on_mascot_finished(self):
+        self._mascot = None
+
+    def _on_mascot_clicked(self):
+        """마스코트를 누르면(창은 MascotWalker가 이미 치움) 트레이에 숨어
+        있던 메인 창을 복원해 맨 앞으로 가져오고 '오늘' 화면을 보여준다."""
+        self.show_and_activate()
+        self.switch_page("today")
 
     def _show_reminder_notification(self, message: str):
         """정기 알림(13:20/16:10)을 여러 채널로 동시에 알린다. 트레이
@@ -875,6 +919,8 @@ class MainWindow(QMainWindow):
         db.set_setting("tray_notice_dismissed", "1")
 
     def _cleanup_before_quit(self):
+        if self._mascot is not None:
+            self._mascot.close()
         if getattr(self, "tray_icon", None):
             self.tray_icon.hide()
         QApplication.instance().quit()

@@ -29,6 +29,14 @@ a = Analysis(
         # 파라미터, 아래)과는 별개 — 그건 exe 파일 자체의 아이콘일 뿐,
         # 코드에서 QIcon(...)으로 읽어들일 수 있는 파일이 아니다.
         ('app/ui/assets/app_icon.ico', 'app/ui/assets'),
+        # 정기 알림 마스코트(파랑새) 이미지 + 배치 좌표(layout.json) —
+        # app/ui/mascot_walker.py, app/config.py의 mascot_asset_dir() 참고.
+        # 여기서 빠지면 위 폰트·화살표 때와 똑같이 개발 환경에선 멀쩡하고
+        # 배포판에서만 마스코트가 조용히 안 나온다(파일을 못 읽으면 조용히
+        # 건너뛰게 만들어 뒀으므로 오류도 안 뜬다). 설명 문서(.md)는
+        # 런타임에 안 쓰므로 png와 json만 넣는다.
+        ('app/ui/assets/mascot/*.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/layout.json', 'app/ui/assets/mascot'),
     ],
     hiddenimports=[],
     hookspath=[],
