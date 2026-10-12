@@ -23,7 +23,10 @@
   움직이는 걸 쫓아가며 누르지 않아도 되게. 마우스를 떼면 다시 걷는다.
 - 말풍선에는 "쿨브리핑"과 건수만 쓴다. 업무 제목 같은 구체 내용은 절대
   넣지 않는다 — 교실 TV·프로젝터로 화면이 공유되고 있을 수 있다.
-- 할 일이 0건이 되면(MainWindow가 set_count로 알려 줌) 스스로 사라진다.
+- 말풍선 숫자는 '업무' 화면 '오늘까지' 탭과 같은 건수다(오늘이 마감인
+  미완료 업무). 0건이어도 그대로 "0건"으로 보여 준다 — 다른 날짜의 할 일이
+  남아 있으면 MainWindow가 파랑새를 계속 내보내고, 미완료 업무가 하나도
+  없어지면 MainWindow가 닫는다.
 
 걷기 이미지·확성기 위치는 app/ui/assets/mascot/MASCOT_ASSETS.md, layout.json
 참고. 화면 배치 계산은 Qt 없이 compute_layout()에 모아 두었다(미리보기
@@ -64,7 +67,7 @@ BUBBLE_PAD_Y = 8
 LINE_GAP = 2
 # 말풍선 폭은 이 문구 기준으로 고정한다 — 건수가 1건→12건으로 바뀌어도
 # 창 크기가 출렁이지 않게.
-_WIDTH_SAMPLE = "오늘 할 일 99건!"
+_WIDTH_SAMPLE = "오늘까지 할 일 99건!"
 
 _TITLE_COLOR = QColor("#1656E8")
 _TEXT_COLOR = QColor("#191E2D")
@@ -161,7 +164,7 @@ class MascotWalker(QWidget):
     clicked = Signal()      # 왼쪽 클릭 — 앱 창을 연다
     dismissed = Signal()    # 오른쪽 클릭 — 앱은 열지 않고 닫기만
 
-    def __init__(self, todo_count: int, parent=None):
+    def __init__(self, today_count: int, parent=None):
         super().__init__(
             parent,
             Qt.FramelessWindowHint
@@ -176,7 +179,7 @@ class MascotWalker(QWidget):
         self.setMouseTracking(True)
         self.setToolTip("누르면 쿨브리핑이 열립니다 · 오른쪽 클릭하면 닫힙니다")
 
-        self._count = max(0, int(todo_count))
+        self._count = max(0, int(today_count))
         self._load_assets()
 
         self._frame_index = 0
@@ -247,13 +250,10 @@ class MascotWalker(QWidget):
         않고 새로 만들게 하려는 확인용."""
         return not self._closed
 
-    def set_count(self, todo_count: int):
-        """MainWindow가 1분마다 최신 건수를 알려 준다. 다 처리해서 0건이
-        되면 더 돌아다닐 이유가 없으니 사라진다."""
-        n = max(0, int(todo_count))
-        if n < 1:
-            self.close()
-            return
+    def set_count(self, today_count: int):
+        """MainWindow가 1분마다 '오늘까지' 건수를 알려 준다. 0건이어도 그대로
+        보여 준다(사라질지는 MainWindow가 전체 미완료 업무로 판단한다)."""
+        n = max(0, int(today_count))
         if n != self._count:
             self._count = n
             self.update()
@@ -408,7 +408,7 @@ class MascotWalker(QWidget):
         p.setFont(self._body_font)
         p.setPen(_TEXT_COLOR)
         body_rect = QRectF(body.left(), title_rect.bottom() + LINE_GAP, body.width(), self._body_line_h)
-        p.drawText(body_rect, Qt.AlignCenter, f"오늘 할 일 {self._count}건!")
+        p.drawText(body_rect, Qt.AlignCenter, f"오늘까지 할 일 {self._count}건!")
 
         # 파랑새
         sprite = self._idle[self._facing] if self._standing() else self._frames[self._facing][self._frame_index]

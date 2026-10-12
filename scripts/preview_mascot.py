@@ -4,7 +4,7 @@
 않는다(말풍선 숫자는 아래 [TEST] 값을 쓴다).
 
 실행: 프로젝트 폴더에서
-    python scripts/preview_mascot.py          # "오늘 할 일 3건!"
+    python scripts/preview_mascot.py          # "오늘까지 할 일 3건!"
     python scripts/preview_mascot.py 7        # 숫자 바꿔 보기
 
 주 모니터 왼쪽 끝에 바로 나타나 오른쪽으로 걷고, 끝에 닿으면 뒤돌아

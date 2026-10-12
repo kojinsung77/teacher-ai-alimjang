@@ -942,12 +942,14 @@ class MainWindow(QMainWindow):
             # 흔한 일) — 새로 만들어 왼쪽 끝으로 순간이동시키지 말고 건수만
             # 맞춘다. 발표·잠금 때문에 잠깐 숨어 있었다면 스스로 다시 나온다.
             try:
-                old.set_count(count)
+                old.set_count(stats.today_todo_count())
                 return
             except RuntimeError:
                 self._mascot = None  # 이미 정리된 위젯 — 새로 띄운다
         try:
-            walker = mascot_walker.MascotWalker(count)
+            # 말풍선 숫자는 '업무' 화면 '오늘까지' 탭과 같은 건수다. 파랑새를
+            # 내보낼지는 호출부가 전체 미완료 업무(count)로 이미 판단했다.
+            walker = mascot_walker.MascotWalker(stats.today_todo_count())
             walker.clicked.connect(self._on_mascot_clicked)
             # 닫힌 게 '지금 걷고 있는 그 마스코트'일 때만 참조를 지운다 —
             # 이전 마스코트가 늦게 정리되면서 새 마스코트 참조를 지우지 않게.
@@ -1014,8 +1016,8 @@ class MainWindow(QMainWindow):
         self._show_mascot_after_unlock(self._unlock_mascot_seq, 1)
 
     def _refresh_mascot_count(self):
-        """1분마다 — 걸어 다니는 파랑새가 있으면 말풍선 건수를 최신으로
-        맞춘다(0건이면 파랑새가 스스로 사라진다)."""
+        """1분마다 — 걸어 다니는 파랑새가 있으면 말풍선의 '오늘까지' 건수를
+        최신으로 맞춘다. 미완료 업무가 하나도 안 남으면 파랑새를 닫는다."""
         walker = getattr(self, "_mascot", None)
         if walker is None:
             return
@@ -1023,7 +1025,10 @@ class MainWindow(QMainWindow):
             if not walker.is_active():
                 self._mascot = None
                 return
-            walker.set_count(len(stats.todo_tasks()))
+            if len(stats.todo_tasks()) < 1:
+                walker.close()
+                return
+            walker.set_count(stats.today_todo_count())
         except RuntimeError:
             self._mascot = None
         except Exception:

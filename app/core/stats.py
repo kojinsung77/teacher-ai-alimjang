@@ -108,6 +108,12 @@ def new_messages_count(days: int = None) -> int:
         ).fetchone()["c"]
 
 
+def today_todo_count() -> int:
+    """'업무' 화면 '오늘까지' 탭 배지와 같은 숫자 — 마감이 오늘인 미완료
+    업무 건수(기한 지남은 따로 센다). 파랑새 말풍선이 이 숫자를 쓴다."""
+    return len(group_todo_tasks()[DeadlineGroup.TODAY])
+
+
 def dashboard_stats() -> dict:
     """대시보드 통계 카드 4개: 기한 지남 / 오늘까지 / 7일 이내 / 새 메시지."""
     grouped = group_todo_tasks()
