@@ -7,8 +7,11 @@
     python scripts/preview_mascot.py          # "오늘 할 일 3건!"
     python scripts/preview_mascot.py 7        # 숫자 바꿔 보기
 
-마스코트를 누르면 "클릭됨"이 출력되고 끝난다(실제 앱에서는 이때 창이
-열린다). 마우스를 올리면 멈춰 서는지, 속도가 적당한지 확인용."""
+주 모니터 왼쪽 끝에 바로 나타나 오른쪽으로 걷고, 오른쪽 끝에 닿으면
+멈춰 서서 기다린다(사라지지 않는다). 마스코트를 누르면 "클릭됨"이
+출력되고 끝난다(실제 앱에서는 이때 창이 열린다). 마우스를 올리면 멈춰
+서는지, 속도가 적당한지 확인용. 빨리 끝까지 보려면 두 번째 인자로 속도
+배수를 준다: python scripts/preview_mascot.py 3 10"""
 
 import sys
 from pathlib import Path
@@ -22,6 +25,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from app.ui import mascot_walker  # noqa: E402
 
 TEST_COUNT = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+SPEED_X = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
 
 
 def main():
@@ -31,6 +35,7 @@ def main():
         if p.exists():
             QFontDatabase.addApplicationFont(str(p))
 
+    mascot_walker.WALK_SPEED_PX_PER_SEC *= SPEED_X  # 미리보기에서만 빠르게
     print(f"[TEST] 발표·전체화면 중인가? {not mascot_walker.can_show_now()}")
     w = mascot_walker.MascotWalker(TEST_COUNT)
     w.clicked.connect(lambda: print("클릭됨 — 실제 앱에서는 여기서 창이 열립니다"))

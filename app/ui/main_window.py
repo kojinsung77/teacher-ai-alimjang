@@ -127,9 +127,15 @@ _DAILY_REMINDER_TIMES = [
     ("16:10", "퇴근 전에 마지막으로 확인해보세요 — 오늘 처리할 업무 {n}건"),
 ]
 
-# 화면 잠금을 푼 뒤 대기 중인 파랑새를 내보내기까지 기다리는 시간(ms).
-# 잠금 해제 직후엔 바탕화면이 아직 다시 그려지는 중일 수 있다.
-_PENDING_MASCOT_UNLOCK_DELAY_MS = 3000
+# 화면 잠금을 풀면 파랑새를 '바로' 내보낸다. 다만 잠금 해제 신호 직후엔
+# Windows가 아직 "자리 비움(잠금)" 상태로 답하는 순간이 있어, 아주 잠깐
+# 뒤에 첫 시도를 하고 아직이면 1초 간격으로 몇 번 더 본다.
+_UNLOCK_MASCOT_FIRST_TRY_MS = 400
+_UNLOCK_MASCOT_RETRY_MS = 1000
+_UNLOCK_MASCOT_MAX_TRIES = 8
+# 잠금 해제 뒤 가운데 업데이트 카드를 띄우기까지 기다리는 시간(ms) —
+# 파랑새가 먼저 나오고, 카드는 바탕화면이 다 그려진 뒤에 뜨게.
+_UNLOCK_UPDATE_POPUP_DELAY_MS = 3000
 # 앱이 하루 종일 트레이에 켜져 있어도 낮에 나온 새 버전을 알 수 있도록
 # 이 간격마다 version.json을 다시 확인한다.
 _UPDATE_RECHECK_INTERVAL_MS = 2 * 60 * 60 * 1000
@@ -308,12 +314,15 @@ class MainWindow(QMainWindow):
         # ---- 놓친 파랑새를 "대기"로 기억했다가 돌아오면 내보내기 ----
         # 13:20/16:10에 화면이 잠겨 있거나(점심시간에 자리 비움) 발표·
         # 전체화면 중이라 파랑새를 못 띄웠으면, 그날 날짜를 대기로 적어
-        # 둔다. 화면 잠금이 풀리면(3초 뒤) 또는 발표가 끝나 Windows가
+        # 둔다. 화면 잠금이 풀리면(바로) 또는 발표가 끝나 Windows가
         # "알림 받아도 됨"으로 바뀌면(위 1분 타이머) 그때 한 번 걸어간다.
         # 앱 창은 절대 저절로 띄우지 않는다 — 작업 중인 화면을 가로채지
         # 않는다는 원칙. 그날 안에서만 유효하고(자정에 지움), 앱을 껐다
         # 켜면 사라져도 되므로 DB에 저장하지 않는다.
         self._mascot_pending_date = None
+        # 잠금 해제마다 1씩 올린다 — 해제 직후 재시도 중에 다시 잠갔다
+        # 풀어도 파랑새가 두 번 나오지 않게(_show_mascot_after_unlock).
+        self._unlock_mascot_seq = 0
         self._reminder_timer.timeout.connect(self._check_pending_mascot)
         # 잠금·발표 때문에 못 띄운 가운데 업데이트 카드도 같은 1분
         # 타이머로 다시 시도한다(_maybe_show_update_popup 참고).
@@ -968,14 +977,47 @@ class MainWindow(QMainWindow):
         self._screen_locked = True
 
     def _on_screen_unlocked(self):
-        """잠금 해제 = 선생님이 자리에 돌아왔다는 뜻. 대기 중인 파랑새가
-        있으면 바탕화면이 다 그려질 때까지 잠깐 기다렸다 출발시킨다. 앱
-        창은 띄우지 않는다."""
+        """잠금 해제 = 선생님이 자리에 돌아왔다는 뜻. 할 일이 1건 이상이면
+        (정기 알림 시각과 상관없이) 잠금을 풀 때마다 파랑새가 바로 주
+        모니터 왼쪽에 나타나 걸어간다. 앱 창은 띄우지 않는다 — 파랑새를
+        눌러야 열린다."""
         self._screen_locked = False
-        if self._has_pending_mascot():
-            QTimer.singleShot(_PENDING_MASCOT_UNLOCK_DELAY_MS, self._release_pending_mascot)
+        self._unlock_mascot_seq = getattr(self, "_unlock_mascot_seq", 0) + 1
+        seq = self._unlock_mascot_seq
+        QTimer.singleShot(
+            _UNLOCK_MASCOT_FIRST_TRY_MS,
+            lambda: self._show_mascot_after_unlock(seq, 1),
+        )
         if self._update_popup_waiting:
-            QTimer.singleShot(_PENDING_MASCOT_UNLOCK_DELAY_MS, self._maybe_show_update_popup)
+            QTimer.singleShot(_UNLOCK_UPDATE_POPUP_DELAY_MS, self._maybe_show_update_popup)
+
+    def _show_mascot_after_unlock(self, seq: int, attempt: int):
+        """잠금 해제 직후 파랑새를 내보낸다. 놓친 정기 알림(대기)도 이걸로
+        함께 처리된다 — 한 번만 나온다. 해제 직후 Windows가 아직 '자리
+        비움'으로 답하면 1초 간격으로 몇 번 더 보고, 그래도 발표·전체화면
+        중이면 이번 해제 때는 띄우지 않는다(대기가 있으면 1분 타이머가
+        나중에 내보낸다)."""
+        if seq != getattr(self, "_unlock_mascot_seq", 0) or self._screen_locked:
+            return  # 그사이 다시 잠갔거나 더 새로운 해제가 있었다
+        if db.get_setting("mascot_enabled", "1") != "1" or self.demo_mode:
+            self._mascot_pending_date = None
+            return
+        if not mascot_walker.can_show_now():
+            if attempt < _UNLOCK_MASCOT_MAX_TRIES:
+                QTimer.singleShot(
+                    _UNLOCK_MASCOT_RETRY_MS,
+                    lambda: self._show_mascot_after_unlock(seq, attempt + 1),
+                )
+            return
+        try:
+            count = len(stats.todo_tasks())
+        except Exception:
+            traceback.print_exc()
+            return
+        if count < 1:
+            self._mascot_pending_date = None
+            return
+        self._start_mascot(count)  # 대기가 있었으면 여기서 함께 지워진다
 
     def _on_tray_message_clicked(self):
         """트레이 풍선 알림을 클릭했을 때. 정기 알림이었으면 창을

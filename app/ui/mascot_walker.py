@@ -1,6 +1,13 @@
 # -*- coding: utf-8 -*-
-"""정기 알림(13:20/16:10) 때 작업표시줄 바로 위를 왼쪽 끝에서 오른쪽
-끝까지 걸어가는 마스코트(파랑새 + 말풍선).
+"""정기 알림(13:20/16:10)과 화면 잠금 해제 때 주 모니터 작업표시줄 바로
+위를 걸어가는 마스코트(파랑새 + 말풍선).
+
+- 화면 밖에서 슬금슬금 들어오지 않고, 주 모니터 왼쪽 끝에 온전한 모습으로
+  '짠' 나타나 오른쪽으로 걸어간다.
+- 오른쪽 끝에 닿아도 사라지지 않는다. 그 자리에 멈춰 서서(서 있는 자세)
+  클릭될 때까지 기다린다 — 자리를 비웠다 돌아와도 놓치지 않게.
+- 기다리는 동안 발표·전체화면·화면 잠금이 시작되면 잠깐 숨었다가, 끝나면
+  같은 자리에 다시 나타난다 — 학생들 앞 화면에 계속 떠 있으면 곤란하다.
 
 - 다른 창의 포커스를 절대 뺏지 않는다: 선생님이 한글 문서에 타이핑하고
   있어도 입력이 끊기면 안 된다(Tool 창 + WindowDoesNotAcceptFocus +
@@ -9,7 +16,8 @@
   MainWindow가 받아서 앱 창을 띄운다. 투명한 부분은 Windows가 알아서
   아래 창으로 클릭을 통과시킨다(반투명 레이어드 윈도우의 기본 동작).
 - 마우스를 올리면 그 자리에 멈춰 서서 기다린다 — 움직이는 걸 쫓아가며
-  누르지 않아도 되게. 마우스를 떼면 다시 걷는다.
+  누르지 않아도 되게. 마우스를 떼면 다시 걷는다(오른쪽 끝에 도착한
+  뒤에는 계속 서 있다).
 - 말풍선에는 "쿨브리핑"과 건수만 쓴다. 업무 제목 같은 구체 내용은 절대
   넣지 않는다 — 교실 TV·프로젝터로 화면이 공유되고 있을 수 있다.
 
@@ -33,9 +41,9 @@ WALK_SPEED_PX_PER_SEC = 45
 FRAME_INTERVAL_MS = 220
 # 위치를 다시 그리는 주기(ms) — 약 30fps.
 MOVE_TICK_MS = 33
-# 혹시 화면 밖으로 못 나가는 일이 생겨도(모니터 해상도 변경 등) 이 시간이
-# 지나면 무조건 사라진다.
-MAX_LIFETIME_MS = 3 * 60 * 1000
+# 발표·전체화면 여부와 화면 크기 변화를 다시 확인하는 주기(ms). 오른쪽
+# 끝에서 클릭을 기다리는 동안 PPT 슬라이드쇼가 시작되면 이 주기 안에 숨는다.
+GUARD_INTERVAL_MS = 1500
 
 _TITLE_COLOR = QColor("#1656E8")
 _TEXT_COLOR = QColor("#191E2D")
@@ -88,15 +96,16 @@ class MascotWalker(QWidget):
         self._frame_index = 0
         self._paused = False
         self._pressed = False
+        self._arrived = False   # 오른쪽 끝에 도착해 클릭을 기다리는 중
+        self._hidden_for_presenting = False
         self._x = 0.0
 
         self._move_timer = QTimer(self)
         self._move_timer.timeout.connect(self._on_move_tick)
         self._frame_timer = QTimer(self)
         self._frame_timer.timeout.connect(self._on_frame_tick)
-        self._life_timer = QTimer(self)
-        self._life_timer.setSingleShot(True)
-        self._life_timer.timeout.connect(self.close)
+        self._guard_timer = QTimer(self)
+        self._guard_timer.timeout.connect(self._on_guard_tick)
         self._clock = QElapsedTimer()
 
     # ---------- 준비 ----------
@@ -124,31 +133,74 @@ class MascotWalker(QWidget):
 
     # ---------- 출발/종료 ----------
 
-    def start(self):
-        screen = QGuiApplication.primaryScreen()
-        area = screen.availableGeometry()  # 작업표시줄을 뺀 영역
+    def _update_area(self):
+        """주 모니터의 작업표시줄을 뺀 영역 기준으로 출발점·도착점·높이를
+        정한다. 해상도·작업표시줄 위치가 바뀌어도 맞춰지도록 주기적으로
+        다시 부른다."""
+        area = QGuiApplication.primaryScreen().availableGeometry()
         self._area = area
-        self._x = float(area.left() - self.width())
+        self._x_start = float(area.left())
+        # 오른쪽 끝에서 말풍선까지 화면 안에 온전히 보이는 마지막 위치
+        self._x_end = float(max(area.left(), area.right() - self.width() + 1))
         self._y = area.bottom() - self.height() + 1
+
+    def start(self):
+        self._update_area()
+        # 화면 밖이 아니라 왼쪽 끝에 온전한 모습으로 '짠' 나타난다.
+        self._x = self._x_start
         self.move(int(self._x), self._y)
         self.show()  # WA_ShowWithoutActivating이라 포커스를 안 가져간다
+        self.raise_()
         self._clock.start()
         self._move_timer.start(MOVE_TICK_MS)
         self._frame_timer.start(FRAME_INTERVAL_MS)
-        self._life_timer.start(MAX_LIFETIME_MS)
+        self._guard_timer.start(GUARD_INTERVAL_MS)
 
     def _on_move_tick(self):
         elapsed_ms = self._clock.restart()
-        if self._paused:
+        if self._paused or self._arrived or self._hidden_for_presenting:
             return
         self._x += WALK_SPEED_PX_PER_SEC * elapsed_ms / 1000.0
-        if self._x > self._area.right() + 1:
-            self.close()
+        if self._x >= self._x_end:
+            self._arrive()
             return
         self.move(int(self._x), self._y)
 
+    def _arrive(self):
+        """오른쪽 끝 도착 — 멈춰 서서(서 있는 자세) 클릭을 기다린다.
+        걷기 타이머는 끄고, 숨김 확인(_guard_timer)만 남긴다."""
+        self._x = self._x_end
+        self._arrived = True
+        self._move_timer.stop()
+        self._frame_timer.stop()
+        self.move(int(self._x), self._y)
+        self.update()
+
+    def _on_guard_tick(self):
+        """발표·전체화면·잠금이 시작되면 숨고, 끝나면 그 자리에 다시
+        나타난다. 화면 크기가 바뀌었으면 위치를 다시 맞춘다."""
+        if not can_show_now():
+            if not self._hidden_for_presenting:
+                self._hidden_for_presenting = True
+                self._paused = False  # 숨는 동안 leaveEvent가 안 올 수 있다
+                self.hide()
+            return
+        self._update_area()
+        if self._arrived:
+            self._x = self._x_end
+        else:
+            self._x = min(max(self._x, self._x_start), self._x_end)
+        if self._hidden_for_presenting:
+            self._hidden_for_presenting = False
+            self.move(int(self._x), self._y)
+            self.show()
+            self.raise_()
+            self._clock.restart()  # 숨어 있던 시간만큼 순간이동하지 않게
+        elif self.pos().y() != self._y:
+            self.move(int(self._x), self._y)
+
     def _on_frame_tick(self):
-        if self._paused:
+        if self._paused or self._arrived or self._hidden_for_presenting:
             return
         self._frame_index = (self._frame_index + 1) % len(self._frames)
         self.update()
@@ -162,7 +214,8 @@ class MascotWalker(QWidget):
         p.setRenderHint(QPainter.SmoothPixmapTransform)
 
         p.drawPixmap(QPoint(*self._bubble_pos), self._bubble)
-        body = self._idle if self._paused else self._frames[self._frame_index]
+        standing = self._paused or self._arrived
+        body = self._idle if standing else self._frames[self._frame_index]
         p.drawPixmap(QPoint(*self._frame_pos), body)
 
         cx = self._bubble_pos[0] + self._text_center[0]
@@ -214,7 +267,7 @@ class MascotWalker(QWidget):
     def closeEvent(self, event):
         self._move_timer.stop()
         self._frame_timer.stop()
-        self._life_timer.stop()
+        self._guard_timer.stop()
         super().closeEvent(event)
 
 
