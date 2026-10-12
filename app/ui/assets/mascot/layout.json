@@ -1,0 +1,41 @@
+{
+  "scale": "@2x",
+  "frame_size": [
+    311,
+    312
+  ],
+  "bubble_size": [
+    380,
+    297
+  ],
+  "composite_size": [
+    626,
+    457
+  ],
+  "frame_pos": [
+    0,
+    145
+  ],
+  "bubble_pos": [
+    246,
+    0
+  ],
+  "bubble_text_center": [
+    190,
+    126
+  ],
+  "bubble_text_box": [
+    24,
+    20,
+    360,
+    281
+  ],
+  "tail_tip_in_bubble": [
+    57,
+    296
+  ],
+  "megaphone_mouth_in_frame": [
+    298,
+    157
+  ]
+}
