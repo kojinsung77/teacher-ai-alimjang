@@ -484,8 +484,14 @@ class MainWindow(QMainWindow):
         self._maybe_show_update_popup()
 
     def _show_in_app_update_modal(self, info: dict):
-        self.update_modal.show_update(info)
-        self._position_update_modal()
+        # 1분 타이머·2시간 재확인에서 여러 번 불릴 수 있다 — 이미 떠
+        # 있으면 다시 그리지 않는다. 다시 그리면 [업데이트 다운로드]를
+        # 눌러 '받는 중…'으로 바뀐 버튼이 원래대로 돌아가 버린다.
+        if not self.update_modal.isVisible():
+            self.update_modal.show_update(info)
+            self._position_update_modal()
+        if self._install_after_download:
+            self.update_modal.set_waiting(True)
 
     def _update_popup_snoozed_today(self, version: str) -> bool:
         return db.get_setting(_SETTING_UPDATE_POPUP_SNOOZE, "") == (
@@ -511,6 +517,10 @@ class MainWindow(QMainWindow):
         try:
             self.update_modal.hide()  # 같은 안내가 두 군데 뜨지 않게
             self.update_popup.show_update(info)
+            if self._install_after_download:
+                # 앱 창 안 카드에서 이미 [업데이트 다운로드]를 눌러 받는
+                # 중이면 가운데 카드도 '받는 중…'으로 맞춘다.
+                self.update_popup.set_waiting(True)
             update_check.log_update_event(
                 f"[가운데 카드] 표시 — 버전={info.get('version')}"
             )
