@@ -1,7 +1,7 @@
 {
-  "version": "1.9.0",
-  "notes": "점심(13:20)·퇴근 전(16:10) 알림 때 파랑새 마스코트가 화면 아래를 걸어가며 오늘 할 일 건수를 알려줍니다. 마스코트를 누르면 쿨브리핑 '오늘' 화면이 열립니다. 전체화면·발표 중에는 나타나지 않으며, 설정 > 일반에서 끌 수 있습니다(트레이 알림은 그대로).",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.9.0/TeacherAlimjang_Setup_v1.9.0.exe",
-  "sha256": "a2813969b07578ba42bc594a19c75b6daab98611748b0602b48b5643e784bfd3",
+  "version": "1.9.1",
+  "notes": "점심·퇴근 전 파랑새 알림 추가 — 화면 아래를 천천히 걸어가며 오늘 할 일 건수를 알려주고, 마우스를 올리면 멈춰 기다립니다. 누르면 '오늘' 화면이 열립니다(발표·전체화면 중에는 나타나지 않음, 설정 > 일반에서 끌 수 있음).",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.9.1/TeacherAlimjang_Setup_v1.9.1.exe",
+  "sha256": "6294191517b9cf62f4f1543b29e0d83ec0a8194188e53159cd14ef92ecc3d6bf",
   "release_date": "2026-10-12"
 }
