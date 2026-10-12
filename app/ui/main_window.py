@@ -3,6 +3,7 @@
 
 import os
 import subprocess
+import sys
 import time
 import traceback
 import urllib.parse
@@ -17,7 +18,10 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config, db
-from ..core import autostart, daily_note, holidays_sync, stats, task_manager, update_check
+from ..core import (
+    autostart, daily_note, holidays_sync, session_lock, stats, task_manager,
+    update_check,
+)
 from .common_widgets import Toast
 from . import mascot_walker
 from .update_modal import UpdateModal
@@ -121,6 +125,10 @@ _DAILY_REMINDER_TIMES = [
     ("13:20", "점심시간 끝나기 전에 확인해보세요 — 오늘 처리할 업무 {n}건"),
     ("16:10", "퇴근 전에 마지막으로 확인해보세요 — 오늘 처리할 업무 {n}건"),
 ]
+
+# 화면 잠금을 푼 뒤 대기 중인 파랑새를 내보내기까지 기다리는 시간(ms).
+# 잠금 해제 직후엔 바탕화면이 아직 다시 그려지는 중일 수 있다.
+_PENDING_MASCOT_UNLOCK_DELAY_MS = 3000
 
 
 class MainWindow(QMainWindow):
@@ -282,6 +290,28 @@ class MainWindow(QMainWindow):
         self._reminder_timer = QTimer(self)
         self._reminder_timer.timeout.connect(self._check_daily_reminders)
         self._reminder_timer.start(60 * 1000)  # 1분마다 확인
+
+        # ---- 놓친 파랑새를 "대기"로 기억했다가 돌아오면 내보내기 ----
+        # 13:20/16:10에 화면이 잠겨 있거나(점심시간에 자리 비움) 발표·
+        # 전체화면 중이라 파랑새를 못 띄웠으면, 그날 날짜를 대기로 적어
+        # 둔다. 화면 잠금이 풀리면(3초 뒤) 또는 발표가 끝나 Windows가
+        # "알림 받아도 됨"으로 바뀌면(위 1분 타이머) 그때 한 번 걸어간다.
+        # 앱 창은 절대 저절로 띄우지 않는다 — 작업 중인 화면을 가로채지
+        # 않는다는 원칙. 그날 안에서만 유효하고(자정에 지움), 앱을 껐다
+        # 켜면 사라져도 되므로 DB에 저장하지 않는다.
+        self._mascot_pending_date = None
+        self._reminder_timer.timeout.connect(self._check_pending_mascot)
+        # 세션 알림으로 추적하는 현재 잠금 상태. 앱이 뜨는 시점은 보통
+        # 로그인 직후(잠금 아님)라 False로 시작한다. LOCK 이벤트를 놓쳐도
+        # 잠금 중에는 SHQueryUserNotificationState가 NOT_PRESENT(1)를
+        # 돌려주므로 파랑새가 잠금 화면 뒤로 나가지는 않는다.
+        self._screen_locked = False
+        self._session_monitor = session_lock.WindowsSessionMonitor(
+            int(self.winId()),
+            on_lock=self._on_screen_locked,
+            on_unlock=self._on_screen_unlocked,
+        )
+        self._session_monitor.install(QApplication.instance())
 
         self._setup_tray_icon()
         self._start_update_check()
@@ -711,6 +741,7 @@ class MainWindow(QMainWindow):
         if today != self._last_known_date:
             self._last_known_date = today
             self._reminder_sent_today = set()
+            self._mascot_pending_date = None
             self.switch_page(self.current_page_key)
 
     def _check_daily_reminders(self):
@@ -761,14 +792,20 @@ class MainWindow(QMainWindow):
 
     def _start_mascot(self, count: int):
         """정기 알림과 함께 마스코트(파랑새)를 작업표시줄 위로 걸어가게
-        한다. 설정에서 꺼져 있거나, 발표·전체화면 중이면 건너뛴다(그때도
-        트레이 풍선 알림은 위에서 이미 나갔으므로 알림 자체는 남는다).
-        이미지가 없는 등 어떤 이유로든 실패해도 앱은 계속 동작해야 하므로
-        예외는 로그만 남기고 삼킨다."""
-        if db.get_setting("mascot_enabled", "1") != "1":
+        한다. 설정에서 꺼져 있거나 데모 모드면 아무것도 안 한다. 화면
+        잠금·화면보호기·발표·전체화면 중이라 지금 못 띄우면 "대기"로
+        적어 두고, 나중에 _release_pending_mascot이 내보낸다(트레이 풍선
+        알림은 호출부에서 이미 나갔으므로 알림 자체는 남는다). 이미지가
+        없는 등 어떤 이유로든 실패해도 앱은 계속 동작해야 하므로 예외는
+        로그만 남기고 삼킨다."""
+        if db.get_setting("mascot_enabled", "1") != "1" or self.demo_mode:
             return
-        if not mascot_walker.can_show_now():
+        if self._screen_locked or not mascot_walker.can_show_now():
+            # 13:20과 16:10을 둘 다 놓쳐도 대기는 날짜 하나뿐이라 파랑새는
+            # 한 번만 나온다.
+            self._mascot_pending_date = date.today()
             return
+        self._mascot_pending_date = None
         old = getattr(self, "_mascot", None)
         if old is not None:
             try:
@@ -791,9 +828,55 @@ class MainWindow(QMainWindow):
 
     def _on_mascot_clicked(self):
         """마스코트를 누르면 앱 창을 띄우고 '오늘' 화면을 보여준다 —
-        트레이에 숨어 있었든 다른 창 뒤에 있었든 맨 앞으로 나온다."""
+        트레이에 숨어 있었든 다른 창 뒤에 있었든 맨 앞으로 나온다.
+        show_and_activate가 Windows에서 _win_bring_to_front까지 불러
+        포그라운드 제한을 넘어 확실히 맨 앞으로 올린다(실패하면 조용히
+        일반 activateWindow 동작으로 남는다)."""
         self.show_and_activate()
         self.switch_page("today")
+
+    # ---------- 놓친 파랑새 대기 ----------
+
+    def _has_pending_mascot(self) -> bool:
+        """오늘 날짜로 대기 중인 파랑새가 있는지. 자정 직후
+        _check_date_rollover가 아직 안 돌았어도 어제 대기는 무효다."""
+        return self._mascot_pending_date == date.today()
+
+    def _check_pending_mascot(self):
+        """1분마다 불린다(정기 알림 타이머와 같은 타이머). 대기 중인데
+        발표·전체화면이 끝나 지금 띄워도 되는 상태가 됐으면 내보낸다."""
+        if self._has_pending_mascot():
+            self._release_pending_mascot()
+
+    def _release_pending_mascot(self):
+        """대기 중인 파랑새를 내보낸다. 아직 잠겨 있거나 발표 중이면
+        대기를 그대로 두고 다음 기회(잠금 해제·1분 타이머)를 기다린다.
+        업무 개수는 출발 직전에 다시 센다 — 그사이 다 처리해서 0건이면
+        띄우지 않고 대기만 지운다. 말풍선 숫자도 이때 센 값이다."""
+        if not self._has_pending_mascot():
+            self._mascot_pending_date = None
+            return
+        if db.get_setting("mascot_enabled", "1") != "1" or self.demo_mode:
+            self._mascot_pending_date = None
+            return
+        if self._screen_locked or not mascot_walker.can_show_now():
+            return
+        count = len(stats.todo_tasks())
+        if count < 1:
+            self._mascot_pending_date = None
+            return
+        self._start_mascot(count)  # 출발하면 여기서 대기가 지워진다
+
+    def _on_screen_locked(self):
+        self._screen_locked = True
+
+    def _on_screen_unlocked(self):
+        """잠금 해제 = 선생님이 자리에 돌아왔다는 뜻. 대기 중인 파랑새가
+        있으면 바탕화면이 다 그려질 때까지 잠깐 기다렸다 출발시킨다. 앱
+        창은 띄우지 않는다."""
+        self._screen_locked = False
+        if self._has_pending_mascot():
+            QTimer.singleShot(_PENDING_MASCOT_UNLOCK_DELAY_MS, self._release_pending_mascot)
 
     def _on_tray_message_clicked(self):
         """트레이 풍선 알림을 클릭했을 때. 정기 알림이었으면 창을
@@ -878,14 +961,68 @@ class MainWindow(QMainWindow):
 
     def show_and_activate(self):
         """트레이 더블클릭·바탕화면 아이콘 재실행(Single Instance IPC)·
-        설정 메뉴 등 '창을 다시 보여달라'는 모든 경로가 이 메서드 하나로
-        모인다. 최소화·숨김·다른 창 뒤에 가려짐 등 어떤 상태였든 정상
-        복원한다."""
+        설정 메뉴·파랑새 클릭 등 '창을 다시 보여달라'는 모든
+        경로가 이 메서드 하나로 모인다. 최소화·숨김·다른 창 뒤에 가려짐
+        등 어떤 상태였든 정상 복원한다.
+
+        Windows는 포그라운드가 아닌 프로세스가 자기 창을 맨 앞으로
+        끌어올리는 걸 막는다 — self.activateWindow()(내부적으로
+        SetForegroundWindow)가 조용히 무시되고 작업표시줄 버튼만
+        깜빡인다. 다른 앱(브라우저 등)이 포그라운드를 쥔 상태에서 이
+        창을 띄우려 하면 바로 이 상황이라, 창이 뒤에 가린 채 안
+        보였다(실측 확인). 파랑새는 포커스를 안 받는 창이라 그걸 눌러도
+        같은 일이 생길 수 있다. 그래서
+        Windows에서는 _win_bring_to_front()로 한 번 더 확실하게
+        끌어올린다."""
         if self.isMinimized():
             self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
         self.show()
         self.raise_()
         self.activateWindow()
+        if sys.platform.startswith("win"):
+            self._win_bring_to_front()
+
+    def _win_bring_to_front(self):
+        """Windows 전용: SetForegroundWindow 제한과 무관하게 창을 실제로
+        화면 맨 앞에 올린다.
+
+        1) 포그라운드 스레드에 우리 스레드의 입력 큐를 잠깐 붙였다(Attach
+           ThreadInput) SetForegroundWindow를 부르면 제한이 풀린다 —
+           끝나면 바로 뗀다.
+        2) 그것마저 막혀도, '항상 위(topmost)'로 잠깐 올렸다가 곧바로
+           해제하면 포커스와 무관하게 z-순서 맨 위로 온다.
+        전부 best-effort — 실패해도 예외를 삼키고 넘어간다(적어도
+        activateWindow()까지는 이미 했다)."""
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            hwnd = int(self.winId())
+
+            HWND_TOPMOST = -1
+            HWND_NOTOPMOST = -2
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_NOACTIVATE = 0x0010
+            no_move_size = SWP_NOMOVE | SWP_NOSIZE
+
+            fg = user32.GetForegroundWindow()
+            fg_tid = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+            our_tid = kernel32.GetCurrentThreadId()
+            attached = False
+            try:
+                if fg_tid and fg_tid != our_tid:
+                    attached = bool(user32.AttachThreadInput(fg_tid, our_tid, True))
+                user32.SetForegroundWindow(hwnd)
+            finally:
+                if attached:
+                    user32.AttachThreadInput(fg_tid, our_tid, False)
+
+            user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, no_move_size | SWP_NOACTIVATE)
+            user32.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, no_move_size | SWP_NOACTIVATE)
+        except Exception:
+            pass
 
     def start_hidden_in_tray(self):
         """Windows 자동 시작으로 실행된 경우 main.py가 호출한다. 트레이
@@ -913,6 +1050,8 @@ class MainWindow(QMainWindow):
         db.set_setting("tray_notice_dismissed", "1")
 
     def _cleanup_before_quit(self):
+        if getattr(self, "_session_monitor", None):
+            self._session_monitor.remove()
         if getattr(self, "tray_icon", None):
             self.tray_icon.hide()
         QApplication.instance().quit()
