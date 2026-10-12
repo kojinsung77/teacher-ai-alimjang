@@ -1,7 +1,7 @@
 {
-  "version": "1.10.0",
-  "notes": "점심시간에 자리를 비워도 돌아와 잠금을 풀면 파랑새가 알려줍니다",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.10.0/TeacherAlimjang_Setup_v1.10.0.exe",
-  "sha256": "e47891be619848d0ad4a8c863bd8938245ab3878b83a39461c35617f4881d9d2",
+  "version": "1.11.0",
+  "notes": "새 버전이 나오면 화면 가운데에서 알려 줍니다. [지금 업데이트]를 누르면 바로 설치됩니다",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.11.0/TeacherAlimjang_Setup_v1.11.0.exe",
+  "sha256": "8f8e322fb52c8663994c0dbb91c0dfabb75f64f26ef911e10deb2b52c43bc1a9",
   "release_date": "2026-10-12"
 }
