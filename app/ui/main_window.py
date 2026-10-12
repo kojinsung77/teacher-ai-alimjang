@@ -25,6 +25,7 @@ from ..core import (
 from .common_widgets import Toast
 from . import mascot_walker
 from .update_modal import UpdateModal
+from .update_popup import UpdatePopup
 from .dashboard_view import DashboardView
 from .task_list_view import TaskListView
 from .message_list_view import MessageListView
@@ -129,6 +130,11 @@ _DAILY_REMINDER_TIMES = [
 # 화면 잠금을 푼 뒤 대기 중인 파랑새를 내보내기까지 기다리는 시간(ms).
 # 잠금 해제 직후엔 바탕화면이 아직 다시 그려지는 중일 수 있다.
 _PENDING_MASCOT_UNLOCK_DELAY_MS = 3000
+# 앱이 하루 종일 트레이에 켜져 있어도 낮에 나온 새 버전을 알 수 있도록
+# 이 간격마다 version.json을 다시 확인한다.
+_UPDATE_RECHECK_INTERVAL_MS = 2 * 60 * 60 * 1000
+# 화면 가운데 업데이트 카드에서 [나중에]를 누른 버전·날짜("1.11.0|2026-10-12")
+_SETTING_UPDATE_POPUP_SNOOZE = "update_popup_snooze"
 
 
 class MainWindow(QMainWindow):
@@ -238,6 +244,14 @@ class MainWindow(QMainWindow):
         self.update_modal.dismiss_requested.connect(self._on_update_dismiss_clicked)
         self.update_modal.closed.connect(self.update_modal.hide)
 
+        # 새 버전을 모니터 가운데에 알리는 카드 — 앱 창이 트레이에 숨어
+        # 있어도 보이도록 부모 없는 독립 창으로 만든다(위 update_modal은
+        # 앱 창을 열어야만 보인다). 자세한 동작은 update_popup.py 참고.
+        self.update_popup = UpdatePopup()
+        self.update_popup.install_requested.connect(self._on_install_requested)
+        self.update_popup.later_requested.connect(self._on_update_popup_later)
+        self._update_popup_waiting = False
+
         self.dashboard_view = DashboardView(demo_mode=self.demo_mode)
         self.dashboard_view.navigateRequested.connect(self.switch_page)
         self._add_page("today", self.dashboard_view)
@@ -301,6 +315,9 @@ class MainWindow(QMainWindow):
         # 켜면 사라져도 되므로 DB에 저장하지 않는다.
         self._mascot_pending_date = None
         self._reminder_timer.timeout.connect(self._check_pending_mascot)
+        # 잠금·발표 때문에 못 띄운 가운데 업데이트 카드도 같은 1분
+        # 타이머로 다시 시도한다(_maybe_show_update_popup 참고).
+        self._reminder_timer.timeout.connect(self._maybe_show_update_popup)
         # 세션 알림으로 추적하는 현재 잠금 상태. 앱이 뜨는 시점은 보통
         # 로그인 직후(잠금 아님)라 False로 시작한다. LOCK 이벤트를 놓쳐도
         # 잠금 중에는 SHQueryUserNotificationState가 NOT_PRESENT(1)를
@@ -420,6 +437,20 @@ class MainWindow(QMainWindow):
         self._install_after_download = False
         self._update_download_thread = None
 
+        self._update_check_thread = None
+        self._recheck_update()
+
+        # 앱이 하루 종일 켜져 있어도(Windows 시작 시 트레이 실행) 낮에 나온
+        # 새 버전을 알 수 있게 주기적으로 다시 확인한다.
+        self._update_recheck_timer = QTimer(self)
+        self._update_recheck_timer.timeout.connect(self._recheck_update)
+        self._update_recheck_timer.start(_UPDATE_RECHECK_INTERVAL_MS)
+
+    def _recheck_update(self):
+        """version.json을 백그라운드에서 한 번 확인한다. 이전 확인이 아직
+        진행 중이면 겹치지 않게 건너뛴다."""
+        if self._update_check_thread is not None and self._update_check_thread.isRunning():
+            return
         self._update_check_thread = _UpdateCheckThread(self)
         self._update_check_thread.resultReady.connect(self._on_update_check_result)
         self._update_check_thread.start()
@@ -430,13 +461,75 @@ class MainWindow(QMainWindow):
         version = info.get("version", "")
         if update_check.is_version_ignored(version):
             return
+        same_as_pending = (
+            self._pending_update_info is not None
+            and self._pending_update_info.get("version") == version
+        )
         self._pending_update_info = info
+        if not same_as_pending:
+            # 카드가 뜨는 시점에 사용자가 아무것도 안 눌러도 미리 조용히
+            # 받아 둔다 — [지금 업데이트]를 눌렀을 때 대부분 곧바로
+            # 설치가 시작되도록. 같은 버전을 다시 확인한 경우(2시간마다)엔
+            # 이미 받아 뒀거나 받는 중이므로 다시 받지 않는다.
+            self._start_update_download(info)
+
+        if self._update_popup_snoozed_today(version):
+            # 오늘 [나중에]를 눌렀다 — 가운데 카드는 내일 다시 띄우고, 앱
+            # 창 안의 카드만 보여 둔다(앱을 열면 거기서 업데이트 가능).
+            self._show_in_app_update_modal(info)
+            return
+        if self.update_popup.isVisible():
+            return
+        self._update_popup_waiting = True
+        self._maybe_show_update_popup()
+
+    def _show_in_app_update_modal(self, info: dict):
         self.update_modal.show_update(info)
         self._position_update_modal()
-        # 카드가 뜨는 시점에 사용자가 아무것도 안 눌러도 미리 조용히
-        # 받아 둔다 — [업데이트 다운로드]를 눌렀을 때 대부분 곧바로
-        # 설치가 시작되도록.
-        self._start_update_download(info)
+
+    def _update_popup_snoozed_today(self, version: str) -> bool:
+        return db.get_setting(_SETTING_UPDATE_POPUP_SNOOZE, "") == (
+            f"{version}|{date.today().isoformat()}"
+        )
+
+    def _maybe_show_update_popup(self):
+        """가운데 업데이트 카드를 띄울 차례면 띄운다. 화면이 잠겨 있거나
+        발표·전체화면 중이면 지금은 건너뛰고(대기 유지), 1분 타이머·잠금
+        해제 때 다시 불려서 그때 띄운다 — 학생들 앞 화면에 갑자기 뜨거나
+        잠금 화면 뒤에서 아무도 못 보고 지나가지 않게. 대기 중엔 앱 창 안의
+        카드는 미리 보여 둔다(앱을 열면 거기서도 업데이트할 수 있게)."""
+        if not self._update_popup_waiting or self._pending_update_info is None:
+            return
+        info = self._pending_update_info
+        if self._update_popup_snoozed_today(info.get("version", "")):
+            self._update_popup_waiting = False
+            return
+        if self._screen_locked or not mascot_walker.can_show_now():
+            self._show_in_app_update_modal(info)
+            return
+        self._update_popup_waiting = False
+        try:
+            self.update_modal.hide()  # 같은 안내가 두 군데 뜨지 않게
+            self.update_popup.show_update(info)
+            update_check.log_update_event(
+                f"[가운데 카드] 표시 — 버전={info.get('version')}"
+            )
+        except Exception:
+            traceback.print_exc()
+            self._show_in_app_update_modal(info)
+
+    def _on_update_popup_later(self):
+        """가운데 카드의 [나중에]/✕ — 오늘은 다시 안 띄우고, 앱 창 안의
+        카드로만 남겨 둔다. 내일 다시 확인하면 가운데 카드가 또 뜬다.
+        버그 수정이 담긴 업데이트를 영영 놓치지 않도록 여기서는 '다시 안
+        보기'(영구 무시)를 하지 않는다."""
+        self.update_popup.hide()
+        self._update_popup_waiting = False
+        if self._pending_update_info is not None:
+            version = self._pending_update_info.get("version", "")
+            db.set_setting(_SETTING_UPDATE_POPUP_SNOOZE, f"{version}|{date.today().isoformat()}")
+            update_check.log_update_event(f"[가운데 카드] 나중에 — 버전={version}, 오늘은 다시 안 띄움")
+            self._show_in_app_update_modal(self._pending_update_info)
 
     def _start_update_download(self, info: dict):
         if self._update_download_thread is not None and self._update_download_thread.isRunning():
@@ -452,6 +545,7 @@ class MainWindow(QMainWindow):
             return
         self._install_after_download = False
         self.update_modal.set_waiting(False)
+        self.update_popup.set_waiting(False)
         if path is not None:
             self._run_silent_install(path)
         else:
@@ -487,6 +581,7 @@ class MainWindow(QMainWindow):
 
         self._install_after_download = True
         self.update_modal.set_waiting(True)
+        self.update_popup.set_waiting(True)
         if self._update_download_thread is None or not self._update_download_thread.isRunning():
             if self._pending_update_info is not None:
                 update_check.log_update_event(
@@ -508,6 +603,8 @@ class MainWindow(QMainWindow):
         if self._pending_update_info is not None:
             update_check.set_ignored_version(self._pending_update_info.get("version", ""))
         self.update_modal.hide()
+        self.update_popup.hide()
+        self._update_popup_waiting = False
 
     def _run_silent_install(self, installer_path):
         """미리 받아 SHA256까지 검증해 둔 설치 파일을 실행하고, 우리 앱은
@@ -877,6 +974,8 @@ class MainWindow(QMainWindow):
         self._screen_locked = False
         if self._has_pending_mascot():
             QTimer.singleShot(_PENDING_MASCOT_UNLOCK_DELAY_MS, self._release_pending_mascot)
+        if self._update_popup_waiting:
+            QTimer.singleShot(_PENDING_MASCOT_UNLOCK_DELAY_MS, self._maybe_show_update_popup)
 
     def _on_tray_message_clicked(self):
         """트레이 풍선 알림을 클릭했을 때. 정기 알림이었으면 창을
@@ -1054,6 +1153,9 @@ class MainWindow(QMainWindow):
             self._session_monitor.remove()
         if getattr(self, "tray_icon", None):
             self.tray_icon.hide()
+        # 부모 없는 독립 창이라 앱 창과 같이 닫히지 않는다 — 직접 숨긴다.
+        if getattr(self, "update_popup", None) is not None:
+            self.update_popup.hide()
         QApplication.instance().quit()
 
     def quit_application(self):

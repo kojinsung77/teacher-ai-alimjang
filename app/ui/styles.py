@@ -203,6 +203,33 @@ QLabel#UpdateModalDate {{
     color: {COLORS['text_secondary']};
     font-size: 12px;
 }}
+QFrame#UpdatePopupCard {{
+    background-color: {COLORS['card_bg']};
+    border: 2px solid {COLORS['stat_blue_border']};
+    border-radius: 20px;
+}}
+QLabel#UpdatePopupTitle {{
+    color: {COLORS['text_primary']};
+    font-size: 22px;
+    font-weight: 800;
+}}
+QLabel#UpdatePopupVersion {{
+    color: {COLORS['accent']};
+    font-size: 15px;
+    font-weight: 700;
+}}
+QLabel#UpdatePopupNotes {{
+    color: {COLORS['text_primary']};
+    font-size: 13px;
+}}
+QLabel#UpdatePopupHint {{
+    color: {COLORS['text_secondary']};
+    font-size: 12px;
+}}
+QLabel#UpdatePopupManualLink {{
+    color: {COLORS['text_secondary']};
+    font-size: 12px;
+}}
 QLabel#DemoModeBadge {{
     background-color: {COLORS['stat_orange_bg']};
     color: {COLORS['amber']};
