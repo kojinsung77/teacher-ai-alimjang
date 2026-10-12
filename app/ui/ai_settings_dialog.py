@@ -131,6 +131,15 @@ class _SettingsFormMixin:
         )
         v.addWidget(self.auto_note_check)
 
+        self.mascot_check = QCheckBox("점심·퇴근 전 마스코트 알림")
+        self.mascot_check.setChecked(db.get_setting("mascot_enabled", "1") == "1")
+        self.mascot_check.setToolTip(
+            "13:20과 16:10에 할 일이 남아 있으면 파랑새가 화면 아래를 걸어가며 알려줍니다.\n"
+            "누르면 프로그램이 열립니다. 발표·전체화면 중에는 나오지 않습니다.\n"
+            "꺼두어도 오른쪽 아래 알림은 그대로 옵니다."
+        )
+        v.addWidget(self.mascot_check)
+
         v.addSpacing(4)
         neis_section_label = QLabel("학사일정 자동 채움 (선택)")
         neis_section_label.setObjectName("FormLabel")
@@ -418,6 +427,10 @@ class _SettingsFormMixin:
         db.set_setting(
             "auto_note_enabled",
             "1" if self.auto_note_check.isChecked() else "0",
+        )
+        db.set_setting(
+            "mascot_enabled",
+            "1" if self.mascot_check.isChecked() else "0",
         )
         neis_key = self.neis_key_input.text().strip()
         if neis_key:

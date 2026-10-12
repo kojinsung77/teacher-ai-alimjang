@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from .. import config, db
 from ..core import autostart, daily_note, holidays_sync, stats, task_manager, update_check
 from .common_widgets import Toast
+from . import mascot_walker
 from .update_modal import UpdateModal
 from .dashboard_view import DashboardView
 from .task_list_view import TaskListView
@@ -728,6 +729,7 @@ class MainWindow(QMainWindow):
             count = len(stats.todo_tasks())
             if count >= 1:
                 self._show_reminder_notification(template.format(n=count))
+                self._start_mascot(count)
 
     def _show_reminder_notification(self, message: str):
         """정기 알림(13:20/16:10)을 여러 채널로 동시에 알린다. 트레이
@@ -756,6 +758,42 @@ class MainWindow(QMainWindow):
         self.tray_icon.showMessage(
             config.APP_NAME, message, QSystemTrayIcon.Information, 12000
         )
+
+    def _start_mascot(self, count: int):
+        """정기 알림과 함께 마스코트(파랑새)를 작업표시줄 위로 걸어가게
+        한다. 설정에서 꺼져 있거나, 발표·전체화면 중이면 건너뛴다(그때도
+        트레이 풍선 알림은 위에서 이미 나갔으므로 알림 자체는 남는다).
+        이미지가 없는 등 어떤 이유로든 실패해도 앱은 계속 동작해야 하므로
+        예외는 로그만 남기고 삼킨다."""
+        if db.get_setting("mascot_enabled", "1") != "1":
+            return
+        if not mascot_walker.can_show_now():
+            return
+        old = getattr(self, "_mascot", None)
+        if old is not None:
+            try:
+                old.close()
+            except RuntimeError:
+                pass  # 이미 정리된 위젯 — 무시하고 새로 띄운다
+        try:
+            walker = mascot_walker.MascotWalker(count)
+            walker.clicked.connect(self._on_mascot_clicked)
+            # 닫힌 게 '지금 걷고 있는 그 마스코트'일 때만 참조를 지운다 —
+            # 이전 마스코트가 늦게 정리되면서 새 마스코트 참조를 지우지 않게.
+            walker.destroyed.connect(
+                lambda *_, w=walker: setattr(self, "_mascot", None)
+                if getattr(self, "_mascot", None) is w else None
+            )
+            self._mascot = walker
+            walker.start()
+        except Exception:
+            traceback.print_exc()
+
+    def _on_mascot_clicked(self):
+        """마스코트를 누르면 앱 창을 띄우고 '오늘' 화면을 보여준다 —
+        트레이에 숨어 있었든 다른 창 뒤에 있었든 맨 앞으로 나온다."""
+        self.show_and_activate()
+        self.switch_page("today")
 
     def _on_tray_message_clicked(self):
         """트레이 풍선 알림을 클릭했을 때. 정기 알림이었으면 창을

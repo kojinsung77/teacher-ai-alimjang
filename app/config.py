@@ -57,6 +57,14 @@ def icon_path() -> Path:
     return base / "app" / "ui" / "assets" / "app_icon.ico"
 
 
+def mascot_dir() -> Path:
+    """13:20/16:10 정기 알림 때 화면 아래를 걸어가는 마스코트(파랑새)
+    이미지 폴더. 이 폴더도 TeacherAlimjang.spec의 datas에 들어가 있어야
+    배포된 exe에서 보인다(아래 다른 아이콘들과 같은 함정)."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+    return base / "app" / "ui" / "assets" / "mascot"
+
+
 def checkmark_icon_path() -> Path:
     """체크박스 체크 표시(흰색 ✓ PNG) 경로. icon_path()와 동일한 이유로
     PyInstaller onefile 빌드 시 _MEIPASS 기준 경로를 쓴다."""

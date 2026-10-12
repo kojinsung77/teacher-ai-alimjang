@@ -29,6 +29,17 @@ a = Analysis(
         # 파라미터, 아래)과는 별개 — 그건 exe 파일 자체의 아이콘일 뿐,
         # 코드에서 QIcon(...)으로 읽어들일 수 있는 파일이 아니다.
         ('app/ui/assets/app_icon.ico', 'app/ui/assets'),
+        # 정기 알림 때 화면 아래를 걸어가는 마스코트 이미지와 배치 좌표
+        # (app/config.py의 mascot_dir(), app/ui/mascot_walker.py 참고).
+        # layout.json까지 빠짐없이 들어가야 한다 — 하나라도 빠지면 배포된
+        # exe에서만 마스코트가 조용히 안 나온다(위 폰트·아이콘과 같은 함정).
+        ('app/ui/assets/mascot/mascot_walk_0.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/mascot_walk_1.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/mascot_walk_2.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/mascot_walk_3.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/mascot_idle.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/speech_bubble.png', 'app/ui/assets/mascot'),
+        ('app/ui/assets/mascot/layout.json', 'app/ui/assets/mascot'),
     ],
     hiddenimports=[],
     hookspath=[],
