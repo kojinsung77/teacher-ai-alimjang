@@ -1,7 +1,7 @@
 {
-  "version": "1.9.1",
-  "notes": "점심·퇴근 전 파랑새 알림 추가 — 화면 아래를 천천히 걸어가며 오늘 할 일 건수를 알려주고, 마우스를 올리면 멈춰 기다립니다. 누르면 '오늘' 화면이 열립니다(발표·전체화면 중에는 나타나지 않음, 설정 > 일반에서 끌 수 있음).",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.9.1/TeacherAlimjang_Setup_v1.9.1.exe",
-  "sha256": "6294191517b9cf62f4f1543b29e0d83ec0a8194188e53159cd14ef92ecc3d6bf",
+  "version": "1.10.0",
+  "notes": "점심시간에 자리를 비워도 돌아와 잠금을 풀면 파랑새가 알려줍니다",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.10.0/TeacherAlimjang_Setup_v1.10.0.exe",
+  "sha256": "e47891be619848d0ad4a8c863bd8938245ab3878b83a39461c35617f4881d9d2",
   "release_date": "2026-10-12"
 }
