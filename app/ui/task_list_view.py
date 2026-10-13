@@ -2,10 +2,13 @@
 """'업무' 화면 — 마감일 기준 탭 필터(전체/기한 지남/오늘까지/7일 이내/
 그 이후/기한 없음/완료) + 업무 카드 목록 + AI 재분석/알림장 만들기.
 
+'기한 지남'·'기한 없음' 탭에는 [전체 완료] 버튼이 있다 — 확인창에서 건수를
+보여주고, 처리 직후 목록 위에 [되돌리기] 안내를 잠깐 띄운다.
+
 날짜 분류는 전부 app/core/deadline_classifier.py + app/core/stats.py에
 위임한다 — 이 파일은 그 결과를 화면에 그리는 역할만 한다."""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
     QFrame, QDialog, QMessageBox, QApplication
@@ -30,6 +33,24 @@ _FILTER_TABS = [
     ("no_deadline", GROUP_LABELS[DeadlineGroup.NO_DEADLINE], DeadlineGroup.NO_DEADLINE, "nodeadline"),
     ("completed", "완료", None, "completed"),
 ]
+
+# [전체 완료] 버튼을 보여 주는 탭. '오늘까지'·'7일 이내'·'그 이후'는 아직
+# 실제로 해야 할 일이라 한꺼번에 완료하다 진짜 업무를 놓치기 쉬워서 뺐다.
+_BULK_COMPLETE_TABS = ("overdue", "no_deadline")
+
+# 일괄 완료 직후 [되돌리기] 안내를 띄워 두는 시간
+_UNDO_VISIBLE_MS = 15000
+
+
+def bulk_confirm_text(filter_key: str, count: int) -> str:
+    """[전체 완료] 확인창 본문. 테스트에서도 그대로 쓰려고 함수로 뺐다."""
+    label = GROUP_LABELS[DeadlineGroup.OVERDUE] if filter_key == "overdue" \
+        else GROUP_LABELS[DeadlineGroup.NO_DEADLINE]
+    text = f"'{label}' 업무 {count}건을 모두 완료로 바꿀까요?"
+    if filter_key == "no_deadline":
+        text += "\n\n※ 마감 없는 진행 중 업무도 함께 완료됩니다."
+    text += "\n\n완료한 업무는 '완료' 탭으로 옮겨지고,\n처리 직후 나타나는 [되돌리기]로 한 번에 취소할 수 있어요."
+    return text
 
 
 class _FilterTab(ClickableCard):
@@ -109,11 +130,18 @@ class _DailyNoteResultDialog(QDialog):
 
 
 class TaskListView(QWidget):
+    # 업무의 완료 상태가 바뀌었을 때(개별·일괄·되돌리기) — MainWindow가
+    # 걸어 다니는 파랑새의 건수를 1분 기다리지 않고 바로 맞추는 데 쓴다.
+    tasksChanged = Signal()
+
     def __init__(self, demo_mode: bool = True, parent=None):
         super().__init__(parent)
         self.demo_mode = demo_mode
         self.active_filter = "all"
         self._tabs = {}
+        self._filter_counts = {}
+        self._undo_ids = []
+        self._undo_stamp = None
         self._build_ui()
         self.refresh()
 
@@ -159,7 +187,44 @@ class TaskListView(QWidget):
             tabs_row.addWidget(tab)
             self._tabs[key] = tab
         tabs_row.addStretch(1)
+
+        # 눈에 덜 띄는 회색 보조 버튼 — 잘못 누르는 일을 줄인다.
+        self.bulk_complete_btn = QPushButton("전체 완료")
+        self.bulk_complete_btn.setObjectName("GhostButton")
+        self.bulk_complete_btn.setCursor(Qt.PointingHandCursor)
+        self.bulk_complete_btn.setToolTip("이 탭에 보이는 업무를 모두 완료로 바꿉니다")
+        self.bulk_complete_btn.clicked.connect(self.on_bulk_complete)
+        self.bulk_complete_btn.hide()
+        tabs_row.addWidget(self.bulk_complete_btn, 0, Qt.AlignVCenter)
         root.addLayout(tabs_row)
+
+        # 일괄 완료 직후의 [되돌리기] 안내 줄
+        self.undo_bar = QFrame()
+        self.undo_bar.setObjectName("UndoBar")
+        undo_layout = QHBoxLayout(self.undo_bar)
+        undo_layout.setContentsMargins(18, 8, 10, 8)
+        undo_layout.setSpacing(10)
+        self.undo_label = QLabel("")
+        self.undo_label.setObjectName("UndoBarLabel")
+        undo_layout.addWidget(self.undo_label)
+        undo_layout.addStretch(1)
+        self.undo_btn = QPushButton("되돌리기")
+        self.undo_btn.setObjectName("UndoBarButton")
+        self.undo_btn.setCursor(Qt.PointingHandCursor)
+        self.undo_btn.clicked.connect(self.on_undo_bulk_complete)
+        undo_layout.addWidget(self.undo_btn)
+        undo_close = QPushButton("✕")
+        undo_close.setObjectName("UndoBarClose")
+        undo_close.setCursor(Qt.PointingHandCursor)
+        undo_close.setToolTip("안내 닫기")
+        undo_close.clicked.connect(self._hide_undo_bar)
+        undo_layout.addWidget(undo_close)
+        self.undo_bar.hide()
+        root.addWidget(self.undo_bar)
+
+        self._undo_timer = QTimer(self)
+        self._undo_timer.setSingleShot(True)
+        self._undo_timer.timeout.connect(self._hide_undo_bar)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -200,15 +265,33 @@ class TaskListView(QWidget):
         for k, tab in self._tabs.items():
             tab.set_active(k == key)
         self._render_list()
+        self._update_bulk_button()
 
     # ---------- 데이터 로딩/표시 ----------
 
     def refresh(self):
         counts = stats.task_filter_counts()
+        self._filter_counts = counts
         for key, _, _, _ in _FILTER_TABS:
             self._tabs[key].set_count(counts.get(key, 0))
         self._render_list()
         self._refresh_stats(counts["all"])
+        self._update_bulk_button()
+
+    def _update_bulk_button(self):
+        """'기한 지남'·'기한 없음' 탭에 업무가 있을 때만 [전체 완료 (N)]을 보인다."""
+        n = self._filter_counts.get(self.active_filter, 0)
+        if self.active_filter in _BULK_COMPLETE_TABS and n > 0:
+            self.bulk_complete_btn.setText(f"✓ 전체 완료 ({n})")
+            self.bulk_complete_btn.show()
+        else:
+            self.bulk_complete_btn.hide()
+
+    def _current_group_task_ids(self):
+        """지금 탭에 보이는 미완료 업무 id — 화면에 그린 것과 같은 기준으로
+        다시 계산한다(숨은 업무가 섞여 완료되는 일이 없게)."""
+        group = next(g for k, _, g, _ in _FILTER_TABS if k == self.active_filter)
+        return [row["task_id"] for row in stats.group_todo_tasks()[group]]
 
     def _render_list(self):
         self._clear_list()
@@ -259,6 +342,52 @@ class TaskListView(QWidget):
     def on_task_completed_toggled(self, task_id: int, completed: bool):
         db.set_task_completed(task_id, completed)
         self.refresh()
+        self.tasksChanged.emit()
+
+    def on_bulk_complete(self):
+        if self.active_filter not in _BULK_COMPLETE_TABS:
+            return
+        ids = self._current_group_task_ids()
+        if not ids:
+            self.refresh()
+            return
+
+        box = QMessageBox(self)
+        box.setWindowTitle("전체 완료")
+        box.setIcon(QMessageBox.Question)
+        box.setText(bulk_confirm_text(self.active_filter, len(ids)))
+        ok_btn = box.addButton("완료 처리", QMessageBox.AcceptRole)
+        cancel_btn = box.addButton("취소", QMessageBox.RejectRole)
+        box.setDefaultButton(cancel_btn)  # Enter를 잘못 눌러도 아무 일 없게
+        box.setEscapeButton(cancel_btn)
+        box.exec()
+        if box.clickedButton() is not ok_btn:
+            return
+
+        stamp = db.complete_tasks_bulk(ids)
+        self._undo_ids = ids
+        self._undo_stamp = stamp
+        self.refresh()
+        self.tasksChanged.emit()
+        self.undo_label.setText(f"✓ {len(ids)}건을 완료했어요")
+        self.undo_btn.setEnabled(True)
+        self.undo_bar.show()
+        self._undo_timer.start(_UNDO_VISIBLE_MS)
+
+    def on_undo_bulk_complete(self):
+        if not self._undo_ids or not self._undo_stamp:
+            self._hide_undo_bar()
+            return
+        db.undo_bulk_complete(self._undo_ids, self._undo_stamp)
+        self._hide_undo_bar()
+        self.refresh()
+        self.tasksChanged.emit()
+
+    def _hide_undo_bar(self):
+        self._undo_timer.stop()
+        self.undo_bar.hide()
+        self._undo_ids = []
+        self._undo_stamp = None
 
     def on_view_original(self, task_id: int):
         rows = db.messages_for_task(task_id)

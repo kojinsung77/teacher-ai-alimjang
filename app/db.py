@@ -210,6 +210,43 @@ def set_task_completed(task_id: int, completed: bool):
         )
 
 
+def complete_tasks_bulk(task_ids) -> str:
+    """'업무' 화면의 [전체 완료] — 여러 업무를 한 번에(하나의 트랜잭션으로)
+    완료 처리한다. 모두 똑같은 completed_at을 기록하고 그 값을 돌려준다 —
+    [되돌리기]가 이 값으로 '방금 한꺼번에 완료한 묶음'만 정확히 골라낸다.
+    이미 완료된 업무는 건드리지 않는다(원래 완료 시각을 지킨다)."""
+    ids = [int(t) for t in task_ids]
+    stamp = datetime.now().isoformat()
+    if not ids:
+        return stamp
+    marks = ",".join("?" * len(ids))
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE tasks SET completed = 1, completed_at = ? "
+            f"WHERE completed = 0 AND task_id IN ({marks})",
+            [stamp, *ids],
+        )
+    return stamp
+
+
+def undo_bulk_complete(task_ids, stamp: str) -> int:
+    """complete_tasks_bulk()를 되돌린다. 그 묶음(같은 completed_at)으로
+    완료된 채 그대로 있는 업무만 미완료로 돌린다 — 그사이 선생님이 하나를
+    직접 미완료로 돌렸다가 다시 완료한 업무 등은 건드리지 않는다.
+    되돌린 건수를 돌려준다."""
+    ids = [int(t) for t in task_ids]
+    if not ids:
+        return 0
+    marks = ",".join("?" * len(ids))
+    with get_conn() as conn:
+        cur = conn.execute(
+            f"UPDATE tasks SET completed = 0, completed_at = NULL "
+            f"WHERE completed = 1 AND completed_at = ? AND task_id IN ({marks})",
+            [stamp, *ids],
+        )
+        return cur.rowcount
+
+
 # ---------- settings (API Key 제외) ----------
 
 def get_setting(key: str, default=None):

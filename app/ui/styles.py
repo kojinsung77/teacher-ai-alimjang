@@ -180,6 +180,40 @@ QLabel#Toast {{
     font-weight: 600;
 }}
 
+/* ---------- '업무' 화면 일괄 완료 직후 [되돌리기] 안내 줄 ---------- */
+QFrame#UndoBar {{
+    background-color: {COLORS['success_bg']};
+    border: 1px solid #CDEBDC;
+    border-radius: 12px;
+}}
+QLabel#UndoBarLabel {{
+    color: {COLORS['success']};
+    font-size: 13px;
+    font-weight: 700;
+}}
+QPushButton#UndoBarButton {{
+    background-color: {COLORS['card_bg']};
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 9px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 700;
+}}
+QPushButton#UndoBarButton:hover {{
+    background-color: #F0F3FA;
+}}
+QPushButton#UndoBarClose {{
+    background: transparent;
+    color: {COLORS['text_secondary']};
+    border: none;
+    padding: 4px 6px;
+    font-size: 12px;
+}}
+QPushButton#UndoBarClose:hover {{
+    color: {COLORS['text_primary']};
+}}
+
 /* ---------- 새 버전 안내 모달 카드 (창 우측 상단 오버레이) ---------- */
 QFrame#UpdateModal {{
     background-color: {COLORS['stat_blue_bg']};

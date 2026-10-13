@@ -268,6 +268,8 @@ class MainWindow(QMainWindow):
         self._add_page("today", self.dashboard_view)
 
         self.task_list_view = TaskListView(demo_mode=self.demo_mode)
+        # 업무 완료·일괄 완료·되돌리기 직후 파랑새 말풍선 건수를 바로 맞춘다
+        self.task_list_view.tasksChanged.connect(self._refresh_mascot_count)
         self._add_page("tasks", self.task_list_view)
 
         self.message_list_view = MessageListView()
