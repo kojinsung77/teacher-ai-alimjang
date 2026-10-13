@@ -1,7 +1,7 @@
 {
-  "version": "1.12.1",
-  "notes": "파랑새가 업무 화면 오늘까지 탭과 같은 숫자로 오늘까지 할 일을 알려 줍니다",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.12.1/TeacherAlimjang_Setup_v1.12.1.exe",
-  "sha256": "19a26c9e9944a328eb8d47bc24108cc1d7a278e0c98f597f98312b31fc8398b4",
-  "release_date": "2026-10-12"
+  "version": "1.12.2",
+  "notes": "건의사항 메일 주소를 바로잡았습니다",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.12.2/TeacherAlimjang_Setup_v1.12.2.exe",
+  "sha256": "20efc595669d2e5347b3195c0c22547f41e97f396a21d0c3a6d5d7114aabe9b6",
+  "release_date": "2026-10-13"
 }
