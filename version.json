@@ -1,7 +1,7 @@
 {
-  "version": "1.12.2",
-  "notes": "건의사항 메일 주소를 바로잡았습니다",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.12.2/TeacherAlimjang_Setup_v1.12.2.exe",
-  "sha256": "20efc595669d2e5347b3195c0c22547f41e97f396a21d0c3a6d5d7114aabe9b6",
+  "version": "1.13.0",
+  "notes": "업무 화면 '기한 지남'·'기한 없음' 탭에 [전체 완료] 버튼이 생겼어요. 완료 직후 [되돌리기]로 한 번에 취소할 수 있어요.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.13.0/TeacherAlimjang_Setup_v1.13.0.exe",
+  "sha256": "f30ad5142fb4e9c89119e01cdee1c3fb9611f87b8ae79b980285e8af664ac836",
   "release_date": "2026-10-13"
 }
