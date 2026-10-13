@@ -1,7 +1,7 @@
 {
-  "version": "1.13.0",
-  "notes": "업무 화면 '기한 지남'·'기한 없음' 탭에 [전체 완료] 버튼이 생겼어요. 완료 직후 [되돌리기]로 한 번에 취소할 수 있어요.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.13.0/TeacherAlimjang_Setup_v1.13.0.exe",
-  "sha256": "f30ad5142fb4e9c89119e01cdee1c3fb9611f87b8ae79b980285e8af664ac836",
+  "version": "1.14.0",
+  "notes": "업무 화면에 [✓ 완료 처리] 메뉴가 생겼어요. 전체·기한 지남·기한 없음 탭에서 한꺼번에 완료하거나 기간을 정해 골라서 완료할 수 있고, 완료 직후 [되돌리기]로 취소할 수 있어요. 업무 카드에 받은 날짜도 표시돼요.",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.14.0/TeacherAlimjang_Setup_v1.14.0.exe",
+  "sha256": "99d4169a60430e8e07f969d64c85f36af531a6d8f1e9670a164d108c1b1f7dcd",
   "release_date": "2026-10-13"
 }
