@@ -178,10 +178,11 @@ class TaskListView(QWidget):
         root.addLayout(header)
 
         tabs_row = QHBoxLayout()
-        tabs_row.setSpacing(12)
+        tabs_row.setSpacing(10)
         # 탭은 왼쪽 영역에서 줄 바꿈한다 — 창을 줄여도 상자가 찌그러지지 않고
         # 두 줄, 세 줄로 넘어간다.
-        self.tabs_flow = FlowContainer(h_spacing=8, v_spacing=8)
+        # 탭 사이 6px — 1200px 창에서 '완료' 탭까지 한 줄에 들어가게(8px이면 약 8px 모자람)
+        self.tabs_flow = FlowContainer(h_spacing=6, v_spacing=8)
         for key, label, _group, color_key in _FILTER_TABS:
             tab = _FilterTab(label)
             tab.set_badge_color(color_key)

@@ -326,12 +326,17 @@ class BulkRangeDialog(QDialog):
     def _on_dates_changed(self, *_):
         if self._updating:
             return
-        self._preset_key = None
-        self._end = _to_date(self.end_edit.date())
+        end = _to_date(self.end_edit.date())
+        start = None
         if not self.from_start_chk.isChecked():
-            self._start = _to_date(self.start_edit.date())
-            if self._start > self._end:
-                self._start = self._end
+            start = min(_to_date(self.start_edit.date()), end)
+        # Qt 날짜 칸은 날짜가 그대로여도 Enter를 누르면 dateChanged를 보낸다.
+        # 기간이 실제로 안 바뀌었으면 풀어 둔 체크·고른 빠른 선택을 지우지 않는다.
+        if start == self._start and end == self._end:
+            return
+        self._preset_key = None
+        self._start = start
+        self._end = end
         self._excluded.clear()
         self._rebuild()
 
