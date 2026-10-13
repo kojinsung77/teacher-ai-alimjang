@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from .styles import COLORS
-from ..core import dday
+from ..core import bulk_complete, dday
 from ..core.deadline_classifier import DeadlineGroup, classify_deadline
 
 _GROUP_COLOR = {
@@ -81,6 +81,10 @@ class TaskCard(QFrame):
             meta_bits.append(department)
         dday_label = dday.dday_label(task_row["deadline"], task_row["deadline_confidence"])
         meta_bits.append(dday_label)
+        # 받은 날짜 — '기간을 정해서 완료'에서 받은 날짜로 고를 때 참고할 수 있게
+        received = bulk_complete.received_date(task_row)
+        if received:
+            meta_bits.append(f"받은 날 {bulk_complete.short_date(received)}")
         if task_row["requires_attachment_check"]:
             meta_bits.append("📎 첨부 확인 필요")
         if task_row["requires_reply"]:

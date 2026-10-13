@@ -183,13 +183,16 @@ def insert_task(task_dict: dict, source_message_ids: Iterable[str]) -> int:
 
 
 def list_tasks(include_completed: bool = False):
-    """tasks.* 전부 + 연결된 원본 메시지의 department(발신 부서)를 함께 반환한다.
+    """tasks.* 전부 + 연결된 원본 메시지의 department(발신 부서)·received_at(받은
+    날짜)을 함께 반환한다. 메시지가 여러 건 연결된 업무는 가장 먼저 받은
+    메시지를 기준으로 한다(MIN — SQLite는 이때 department·sender도 그 행에서 가져온다).
     (tasks 테이블 자체엔 department 컬럼이 없어 task_messages/messages를 LEFT JOIN;
     한 업무가 보통 메시지 1건에서 만들어지므로 GROUP BY로 안전하게 한 행씩만 남긴다.)
     정렬은 여기서 세밀하게 하지 않는다 — 화면단(app/core/stats.py)에서
     마감일/중요도/생성일 다중 기준으로 다시 정렬한다."""
     base = """
-        SELECT t.*, m.department as department, m.sender as sender
+        SELECT t.*, m.department as department, m.sender as sender,
+               MIN(m.received_at) as received_at
         FROM tasks t
         LEFT JOIN task_messages tm ON tm.task_id = t.task_id
         LEFT JOIN messages m ON m.message_id = tm.message_id

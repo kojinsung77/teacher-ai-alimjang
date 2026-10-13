@@ -214,6 +214,145 @@ QPushButton#UndoBarClose:hover {{
     color: {COLORS['text_primary']};
 }}
 
+/* ---------- '업무' 화면 [✓ 완료 처리 ▾] 메뉴 ---------- */
+QMenu#CompleteMenu {{
+    background-color: white;
+    border: 1px solid {COLORS['border']};
+    border-radius: 8px;
+    padding: 6px;
+}}
+QMenu#CompleteMenu::item {{
+    color: {COLORS['text_primary']};
+    padding: 10px 22px 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+}}
+QMenu#CompleteMenu::item:selected {{
+    background-color: #F3F6FD;
+    color: {COLORS['accent']};
+}}
+QMenu#CompleteMenu::separator {{
+    height: 1px;
+    background-color: {COLORS['border']};
+    margin: 4px 8px;
+}}
+
+/* ---------- [기간을 정해서 완료…] 창 ---------- */
+QLabel#BulkFieldLabel {{
+    color: {COLORS['text_secondary']};
+    font-size: 12px;
+    font-weight: 800;
+}}
+QLabel#BulkBasisFixed {{
+    background-color: #F3F5FA;
+    color: {COLORS['text_primary']};
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+}}
+QPushButton#SegButton {{
+    background-color: #EEF1F7;
+    color: {COLORS['text_secondary']};
+    border: 1px solid #EEF1F7;
+    border-radius: 9px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 700;
+}}
+QPushButton#SegButton:checked {{
+    background-color: white;
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['accent']};
+}}
+QPushButton#ChipButton {{
+    background-color: white;
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 14px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+}}
+QPushButton#ChipButton:hover {{
+    border-color: {COLORS['accent']};
+}}
+QPushButton#ChipButton:checked {{
+    background-color: {COLORS['stat_blue_bg']};
+    border-color: {COLORS['accent']};
+    color: {COLORS['accent']};
+}}
+QLabel#BulkStartText {{
+    background-color: #F3F5FA;
+    color: {COLORS['text_primary']};
+    border-radius: 9px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    min-width: 96px;
+}}
+QDateEdit {{
+    background-color: white;
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 9px;
+    padding: 6px 10px;
+    font-size: 13px;
+}}
+QDateEdit:focus {{
+    border: 1.5px solid {COLORS['accent']};
+}}
+QLabel#BulkSummary {{
+    background-color: {COLORS['stat_blue_bg']};
+    border: 1px solid {COLORS['stat_blue_border']};
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: {COLORS['text_primary']};
+    font-size: 13px;
+}}
+QLabel#BulkWarn {{
+    background-color: {COLORS['stat_orange_bg']};
+    border: 1px solid {COLORS['stat_orange_border']};
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: #9A6A0E;
+    font-size: 13px;
+    font-weight: 700;
+}}
+QPushButton#LinkButton {{
+    background: transparent;
+    border: none;
+    color: {COLORS['accent']};
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 4px;
+}}
+QListWidget#BulkPickList {{
+    background-color: white;
+    border: 1px solid {COLORS['border']};
+    border-radius: 12px;
+    padding: 4px;
+    outline: none;
+    font-size: 13px;
+}}
+QListWidget#BulkPickList::item {{
+    color: {COLORS['text_primary']};
+    padding: 7px 6px;
+    border-bottom: 1px solid #F1F3F8;
+}}
+QListWidget#BulkPickList::indicator {{
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1.5px solid {COLORS['border']};
+    background-color: white;
+}}
+QListWidget#BulkPickList::indicator:checked {{
+    border: 1.5px solid {COLORS['indigo']};
+    background-color: {COLORS['indigo']};
+    image: url({_CHECKMARK_URL});
+}}
+
 /* ---------- 새 버전 안내 모달 카드 (창 우측 상단 오버레이) ---------- */
 QFrame#UpdateModal {{
     background-color: {COLORS['stat_blue_bg']};
