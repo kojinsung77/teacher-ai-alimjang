@@ -1,7 +1,7 @@
 {
-  "version": "1.14.0",
-  "notes": "업무 화면에 [✓ 완료 처리] 메뉴가 생겼어요. 전체·기한 지남·기한 없음 탭에서 한꺼번에 완료하거나 기간을 정해 골라서 완료할 수 있고, 완료 직후 [되돌리기]로 취소할 수 있어요. 업무 카드에 받은 날짜도 표시돼요.",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.14.0/TeacherAlimjang_Setup_v1.14.0.exe",
-  "sha256": "99d4169a60430e8e07f969d64c85f36af531a6d8f1e9670a164d108c1b1f7dcd",
-  "release_date": "2026-10-13"
+  "version": "1.15.0",
+  "notes": "• 앱 아이콘이 파랑새로 바뀌었어요\n• [📨 전달 메시지]로 안내문을 만들어요\n• 설정에서 파랑새가 나오는 때를 고를 수 있어요",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.15.0/TeacherAlimjang_Setup_v1.15.0.exe",
+  "sha256": "8ca7a38bef19d96bce35224bd199d1d9318a82a9d29e569d806627b1fa35ced4",
+  "release_date": "2026-10-19"
 }
