@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
 
 from .. import config, db
 from ..core import (
-    autostart, daily_note, holidays_sync, session_lock, stats, task_manager,
-    update_check,
+    autostart, daily_note, holidays_sync, mascot_settings, session_lock, stats,
+    task_manager, update_check,
 )
 from .common_widgets import Toast
 from . import mascot_walker
@@ -892,7 +892,9 @@ class MainWindow(QMainWindow):
             count = len(stats.todo_tasks())
             if count >= 1:
                 self._show_reminder_notification(template.format(n=count))
-                self._start_mascot(count)
+                # 파랑새는 설정 → 일반에서 이 시각을 켜 둔 경우에만(트레이 알림은 항상)
+                if mascot_settings.is_on(time_str):
+                    self._start_mascot(count)
 
     def _show_reminder_notification(self, message: str):
         """정기 알림(13:20/16:10)을 여러 채널로 동시에 알린다. 트레이
@@ -930,7 +932,7 @@ class MainWindow(QMainWindow):
         알림은 호출부에서 이미 나갔으므로 알림 자체는 남는다). 이미지가
         없는 등 어떤 이유로든 실패해도 앱은 계속 동작해야 하므로 예외는
         로그만 남기고 삼킨다."""
-        if db.get_setting("mascot_enabled", "1") != "1" or self.demo_mode:
+        if not mascot_settings.master_on() or self.demo_mode:
             return
         if self._screen_locked or not mascot_walker.can_show_now():
             # 13:20과 16:10을 둘 다 놓쳐도 대기는 날짜 하나뿐이라 파랑새는
@@ -994,7 +996,7 @@ class MainWindow(QMainWindow):
         if not self._has_pending_mascot():
             self._mascot_pending_date = None
             return
-        if db.get_setting("mascot_enabled", "1") != "1" or self.demo_mode:
+        if not mascot_settings.master_on() or self.demo_mode:
             self._mascot_pending_date = None
             return
         if self._screen_locked or not mascot_walker.can_show_now():
@@ -1010,6 +1012,8 @@ class MainWindow(QMainWindow):
         같은 날 다시 켜질 때(업데이트 뒤 자동 재시작 등)는 안 나온다.
         로그인 직후엔 Windows가 잠깐 '자리 비움'으로 답할 수 있어 잠금
         해제 때와 같은 재시도 경로를 쓴다."""
+        if not mascot_settings.is_on(mascot_settings.STARTUP):
+            return
         today = date.today().isoformat()
         if db.get_setting(_SETTING_MASCOT_STARTUP_DATE, "") == today:
             return
@@ -1047,10 +1051,13 @@ class MainWindow(QMainWindow):
         self._screen_locked = False
         self._unlock_mascot_seq = getattr(self, "_unlock_mascot_seq", 0) + 1
         seq = self._unlock_mascot_seq
-        QTimer.singleShot(
-            _UNLOCK_MASCOT_FIRST_TRY_MS,
-            lambda: self._show_mascot_after_unlock(seq, 1),
-        )
+        # '화면 잠금을 풀 때'를 꺼 두었어도, 잠금 때문에 못 나온 13:20·16:10
+        # 파랑새(대기)는 이때 내보낸다.
+        if mascot_settings.is_on(mascot_settings.UNLOCK) or self._has_pending_mascot():
+            QTimer.singleShot(
+                _UNLOCK_MASCOT_FIRST_TRY_MS,
+                lambda: self._show_mascot_after_unlock(seq, 1),
+            )
         if self._update_popup_waiting:
             QTimer.singleShot(_UNLOCK_UPDATE_POPUP_DELAY_MS, self._maybe_show_update_popup)
 
@@ -1062,7 +1069,7 @@ class MainWindow(QMainWindow):
         나중에 내보낸다)."""
         if seq != getattr(self, "_unlock_mascot_seq", 0) or self._screen_locked:
             return  # 그사이 다시 잠갔거나 더 새로운 해제가 있었다
-        if db.get_setting("mascot_enabled", "1") != "1" or self.demo_mode:
+        if not mascot_settings.master_on() or self.demo_mode:
             self._mascot_pending_date = None
             return
         if not mascot_walker.can_show_now():

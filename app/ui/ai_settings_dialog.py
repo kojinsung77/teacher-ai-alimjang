@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from .. import config, db
 from ..ai import gemini_client
-from ..core import autostart, holidays_sync, update_check
+from ..core import autostart, holidays_sync, mascot_settings, update_check
 from .common_widgets import HoverLiftCard
 from .messenger_setup_dialog import MessengerSetupDialog
 from .privacy_masking_dialog import PrivacyMaskingDialog
@@ -131,15 +131,32 @@ class _SettingsFormMixin:
         )
         v.addWidget(self.auto_note_check)
 
-        self.mascot_check = QCheckBox("파랑새 알림 (켤 때·잠금 해제·13:20·16:10)")
-        self.mascot_check.setChecked(db.get_setting("mascot_enabled", "1") == "1")
+        self.mascot_check = QCheckBox("파랑새 알림")
+        self.mascot_check.setChecked(mascot_settings.master_on())
         self.mascot_check.setToolTip(
-            "할 일이 남아 있으면 아침에 프로그램이 처음 켜질 때, 화면 잠금을 풀 때,\n"
-            "13:20과 16:10에 파랑새가 화면 아래를 왔다 갔다 하며 알려줍니다.\n"
-            "누르면 프로그램이 열리고, 오른쪽 클릭하면 그냥 닫힙니다.\n"
-            "발표·전체화면 중에는 숨어 있습니다. 꺼두어도 오른쪽 아래 알림은 그대로 옵니다."
+            "할 일이 남아 있으면 아래에서 고른 때에 파랑새가 화면 아래를\n"
+            "왔다 갔다 하며 알려줍니다. 누르면 프로그램이 열리고, 오른쪽\n"
+            "클릭하면 그냥 닫힙니다. 발표·전체화면 중에는 숨어 있습니다.\n"
+            "꺼두어도 13:20·16:10의 오른쪽 아래 알림은 그대로 옵니다."
         )
         v.addWidget(self.mascot_check)
+
+        # 파랑새가 나올 때 — 시점마다 켜고 끈다(app/core/mascot_settings.py)
+        self.mascot_trigger_box = QWidget()
+        trig_grid = QGridLayout(self.mascot_trigger_box)
+        trig_grid.setContentsMargins(28, 0, 0, 0)
+        trig_grid.setHorizontalSpacing(24)
+        trig_grid.setVerticalSpacing(6)
+        self.mascot_trigger_checks = {}
+        for i, (trigger, _key, label) in enumerate(mascot_settings.TRIGGERS):
+            chk = QCheckBox(label)
+            chk.setChecked(mascot_settings.trigger_setting(trigger))
+            trig_grid.addWidget(chk, i // 2, i % 2)
+            self.mascot_trigger_checks[trigger] = chk
+        trig_grid.setColumnStretch(2, 1)
+        self.mascot_trigger_box.setEnabled(self.mascot_check.isChecked())
+        self.mascot_check.toggled.connect(self.mascot_trigger_box.setEnabled)
+        v.addWidget(self.mascot_trigger_box)
 
         v.addSpacing(4)
         neis_section_label = QLabel("학사일정 자동 채움 (선택)")
@@ -429,9 +446,9 @@ class _SettingsFormMixin:
             "auto_note_enabled",
             "1" if self.auto_note_check.isChecked() else "0",
         )
-        db.set_setting(
-            "mascot_enabled",
-            "1" if self.mascot_check.isChecked() else "0",
+        mascot_settings.save(
+            self.mascot_check.isChecked(),
+            {t: chk.isChecked() for t, chk in self.mascot_trigger_checks.items()},
         )
         neis_key = self.neis_key_input.text().strip()
         if neis_key:

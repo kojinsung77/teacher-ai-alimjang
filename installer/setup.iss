@@ -73,6 +73,12 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\app\ui\assets\app_icon.ico
+; 설치 화면 이미지(파랑새) — 왼쪽 큰 그림(마침 화면 등)과 오른쪽 위 작은 그림.
+; 화면 배율(100/150/200%)에 맞는 것을 Inno가 골라 쓴다. 24비트 BMP라 배경이
+; 불투명해야 한다(작은 그림은 흰 배경). 이미지를 바꾸면 이 파일들을 같은
+; 크기로 다시 만들면 된다.
+WizardImageFile=images\wizard_large_100.bmp,images\wizard_large_150.bmp,images\wizard_large_200.bmp
+WizardSmallImageFile=images\wizard_small_100.bmp,images\wizard_small_150.bmp,images\wizard_small_200.bmp
 OutputDir=output
 OutputBaseFilename=TeacherAlimjang_Setup_v{#MyAppVersion}
 
