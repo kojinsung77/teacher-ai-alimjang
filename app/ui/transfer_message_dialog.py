@@ -188,6 +188,10 @@ class TransferMessageDialog(QDialog):
         for k, b in self._aud_buttons.items():
             b.setChecked(k == audience)
         self._show_result(self._results.get(audience, ""))
+        # 상담 등 민감 메시지는 확인창에서 [예]를 누르기 전까지 어떤 경로로도
+        # 자동으로 보내지 않는다(받는 사람 버튼으로 바꿔도 마찬가지).
+        if self._source.get("sensitive"):
+            auto = False
         if audience not in self._results and auto and self._busy_audience != audience:
             self._start_generate()
         else:
@@ -202,7 +206,7 @@ class TransferMessageDialog(QDialog):
     # ---------- 만들기 ----------
 
     def _on_generate_clicked(self):
-        if self._source.get("sensitive") and not self._results:
+        if self._source.get("sensitive"):
             answer = QMessageBox.question(
                 self, "민감 정보 확인",
                 "상담·민감 정보가 있을 수 있는 메시지입니다.\n"
@@ -239,7 +243,8 @@ class TransferMessageDialog(QDialog):
         self._results[audience] = text
         if audience == self._audience:
             self._show_result(text)
-        self._set_status(f"{tm.AUDIENCE_NAMES[audience]}용 메시지를 만들었어요. 고칠 곳이 있으면 고친 뒤 [📋 복사]를 누르세요.")
+        self._set_status(f"{tm.AUDIENCE_NAMES[audience]}용 메시지를 만들었어요. 원문에 없는 말이 들어가지 않았는지 "
+            "한 번 읽어 보고, 고칠 곳은 고친 뒤 [📋 복사]를 누르세요.")
         self._refresh_controls()
 
     def _on_failed(self, seq, audience, error):
