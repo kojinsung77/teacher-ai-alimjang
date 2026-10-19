@@ -21,8 +21,10 @@ from app.ui.update_popup import UpdatePopup  # noqa: E402
 TEST_INFO = {
     "version": "9.9.9",
     "release_date": "2026-10-12",
-    "notes": "[TEST] 미리보기용 가짜 안내 문구입니다. 실제 배포 때는 "
-             "release.ps1 -Notes 에 적은 내용이 여기에 나옵니다.",
+    # 한 줄이 '이번 업데이트'의 한 항목이다(release.ps1 -Notes에서는 \n으로 나눔)
+    "notes": "• [TEST] 앱 아이콘이 파랑새로 바뀌었어요\n"
+             "• [TEST] 업무·메시지에서 [📨 전달 메시지]로 안내문을 만들어요\n"
+             "• [TEST] 설정에서 파랑새가 나오는 때를 고를 수 있어요",
 }
 
 

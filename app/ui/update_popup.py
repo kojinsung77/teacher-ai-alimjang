@@ -24,11 +24,12 @@ from PySide6.QtWidgets import (
 )
 
 from .. import config
+from ..core import update_check
 from .common_widgets import apply_card_shadow
 from .update_modal import _format_release_date
 
 _SHADOW_MARGIN = 28  # 카드 그림자가 잘리지 않도록 바깥에 두는 투명 여백
-_NOTES_MAX_CHARS = 140
+_NOTES_MAX_ITEMS = 6
 
 
 class UpdatePopup(QWidget):
@@ -53,7 +54,7 @@ class UpdatePopup(QWidget):
 
         card = QFrame()
         card.setObjectName("UpdatePopupCard")
-        card.setFixedWidth(460)
+        card.setFixedWidth(500)
         outer.addWidget(card)
         apply_card_shadow(card, blur=40, y_offset=12, alpha=60)
 
@@ -97,10 +98,17 @@ class UpdatePopup(QWidget):
         self.version_label.setObjectName("UpdatePopupVersion")
         text_col.addWidget(self.version_label)
 
+        # 이번 업데이트에서 바뀐 점 — version.json notes를 한 줄에 한 항목으로
+        self.notes_title = QLabel("이번 업데이트")
+        self.notes_title.setObjectName("UpdatePopupNotesTitle")
+        text_col.addSpacing(4)
+        text_col.addWidget(self.notes_title)
         self.notes_label = QLabel("")
         self.notes_label.setObjectName("UpdatePopupNotes")
         self.notes_label.setWordWrap(True)
+        self.notes_label.setTextFormat(Qt.RichText)
         text_col.addWidget(self.notes_label)
+        text_col.addSpacing(4)
 
         hint = QLabel("버튼을 누르면 잠깐 꺼졌다가 새 버전으로 다시 켜집니다.\n"
                       "설정과 기록은 그대로 남아요.")
@@ -145,11 +153,10 @@ class UpdatePopup(QWidget):
         date_text = _format_release_date(info.get("release_date", ""))
         self.version_label.setText(f"v{version}" + (f"  ·  {date_text}" if date_text else ""))
 
-        notes = (info.get("notes") or "").strip()
-        if len(notes) > _NOTES_MAX_CHARS:
-            notes = notes[:_NOTES_MAX_CHARS].rstrip() + "…"
+        notes = update_check.notes_html(info.get("notes") or "", _NOTES_MAX_ITEMS)
         self.notes_label.setText(notes)
         self.notes_label.setVisible(bool(notes))
+        self.notes_title.setVisible(bool(notes))
 
         self.set_waiting(False)
         self.adjustSize()

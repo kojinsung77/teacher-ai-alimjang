@@ -412,9 +412,18 @@ QLabel#UpdatePopupVersion {{
     font-size: 15px;
     font-weight: 700;
 }}
+QLabel#UpdatePopupNotesTitle {{
+    color: {COLORS['text_secondary']};
+    font-size: 12px;
+    font-weight: 800;
+}}
 QLabel#UpdatePopupNotes {{
     color: {COLORS['text_primary']};
     font-size: 13px;
+}}
+QLabel#UpdateModalNotes {{
+    color: {COLORS['text_primary']};
+    font-size: 12px;
 }}
 QLabel#UpdatePopupHint {{
     color: {COLORS['text_secondary']};

@@ -11,6 +11,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 
+from ..core import update_check
 from .common_widgets import apply_card_shadow
 
 
@@ -74,6 +75,13 @@ class UpdateModal(QFrame):
         self.date_label.setObjectName("UpdateModalDate")
         outer.addWidget(self.date_label)
 
+        # 이번 업데이트에서 바뀐 점(가운데 카드보다 짧게 3줄까지)
+        self.notes_label = QLabel("")
+        self.notes_label.setObjectName("UpdateModalNotes")
+        self.notes_label.setWordWrap(True)
+        self.notes_label.setTextFormat(Qt.RichText)
+        outer.addWidget(self.notes_label)
+
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
@@ -105,6 +113,10 @@ class UpdateModal(QFrame):
             self.date_label.show()
         else:
             self.date_label.hide()
+
+        notes = update_check.notes_html(info.get("notes") or "", max_items=3)
+        self.notes_label.setText(notes)
+        self.notes_label.setVisible(bool(notes))
 
         self.set_waiting(False)
         self.adjustSize()

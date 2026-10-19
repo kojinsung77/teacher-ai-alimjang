@@ -33,6 +33,7 @@
 #
 # 사용법: 프로젝트 루트에서 실행
 #   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "이번 버전에서 고친 내용"
+#   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "• 첫째 변경\n• 둘째 변경"   # 줄마다 한 항목
 #   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "..." -SkipPublish
 #   powershell -ExecutionPolicy Bypass -File release.ps1 1.2.0 -Notes "..." -IconChanged   # 아이콘을 바꾼 릴리스일 때만
 
@@ -47,6 +48,11 @@ param(
 
     [switch]$IconChanged
 )
+
+# -Notes 안에 \n(역슬래시+n)을 쓰면 줄바꿈으로 바꾼다. 업데이트 카드의
+# '이번 업데이트' 목록은 한 줄이 한 항목이다(app/core/update_check.py notes_items).
+#   예) -Notes "• 아이콘이 파랑새로 바뀌었어요\n• 전달 메시지를 만들 수 있어요"
+$Notes = $Notes -replace '\\n', "`n"
 
 $GhOwner = "kojinsung77"
 $GhRepo = "teacher-ai-alimjang"

@@ -182,3 +182,34 @@ def download_and_verify_update(info: dict, timeout: float = 30.0) -> Path | None
         except OSError:
             pass
         return None
+
+
+# ---------- 업데이트 안내 문구 → '이번 업데이트' 목록 ----------
+
+_NOTE_BULLETS = ("•", "·", "-", "*", "▪", "✓", "✔")
+
+
+def notes_items(notes: str, max_items: int = 6, max_len: int = 90) -> list:
+    """version.json의 notes를 업데이트 카드에 보여 줄 항목 목록으로 바꾼다.
+    한 줄이 한 항목이다(release.ps1 -Notes에서 \\n으로 줄을 나눈다). 줄 앞의
+    •, -, * 같은 글머리표는 떼고 화면에서 다시 붙인다. 줄바꿈이 없는 예전
+    한 문단 문구는 항목 하나로 보여 준다. 너무 길면 자른다."""
+    items = []
+    for line in (notes or "").replace("\r", "").split("\n"):
+        line = line.strip()
+        while line and line[0] in _NOTE_BULLETS:
+            line = line[1:].strip()
+        if not line:
+            continue
+        if len(line) > max_len:
+            line = line[:max_len].rstrip() + "…"
+        items.append(line)
+    if len(items) > max_items:
+        items = items[:max_items - 1] + [f"그 밖에 {len(items) - max_items + 1}가지"]
+    return items
+
+
+def notes_html(notes: str, max_items: int = 6) -> str:
+    """notes_items()를 업데이트 카드용 글머리표 목록(HTML)으로 만든다."""
+    import html
+    return "<br>".join(f"•&nbsp;{html.escape(item)}" for item in notes_items(notes, max_items))
