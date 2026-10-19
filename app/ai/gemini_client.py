@@ -93,3 +93,19 @@ def classify_batch(system_prompt: str, user_prompt: str, images: list | None = N
     if isinstance(data, dict):
         data = [data]
     return data
+
+
+def generate_text(system_prompt: str, user_prompt: str) -> str:
+    """글 한 편을 만들어 그대로 돌려준다(JSON이 아닌 일반 텍스트).
+    업무 카드·메시지의 [📨 전달 메시지]가 쓴다. 보내기 전 개인정보
+    가리기(masking.mask_text)는 호출부(app/core/transfer_message.py)가 한다.
+    실패하면 예외를 그대로 올린다."""
+    key = load_api_key()
+    if not key:
+        raise GeminiKeyError("Gemini API Key가 설정되어 있지 않습니다. 설정 화면에서 입력해 주세요.")
+
+    import google.generativeai as genai
+    genai.configure(api_key=key)
+    model = genai.GenerativeModel(current_model(), system_instruction=system_prompt)
+    resp = model.generate_content(user_prompt)
+    return (resp.text or "").strip()

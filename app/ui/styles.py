@@ -353,6 +353,27 @@ QListWidget#BulkPickList::indicator:checked {{
     image: url({_CHECKMARK_URL});
 }}
 
+/* ---------- [📨 전달 메시지] 창 ---------- */
+QPlainTextEdit#TransferSource {{
+    background-color: #F7F9FC;
+    color: {COLORS['text_secondary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+}}
+QPlainTextEdit#TransferResult {{
+    background-color: white;
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 14px;
+}}
+QPlainTextEdit#TransferSource:focus, QPlainTextEdit#TransferResult:focus {{
+    border: 1.5px solid {COLORS['accent']};
+}}
+
 /* ---------- 새 버전 안내 모달 카드 (창 우측 상단 오버레이) ---------- */
 QFrame#UpdateModal {{
     background-color: {COLORS['stat_blue_bg']};

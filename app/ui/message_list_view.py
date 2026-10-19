@@ -8,13 +8,15 @@ import html
 import re
 import webbrowser
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
     QFrame, QLineEdit, QMessageBox, QDialog
 )
 
 from .. import db
+from ..core import transfer_message
+from .transfer_message_dialog import TransferMessageDialog, build_audience_menu
 from .common_widgets import build_empty_state
 
 _PERIOD_TABS = [
@@ -247,6 +249,16 @@ class MessageListView(QWidget):
         origin_btn.clicked.connect(lambda: self._show_original(row))
         btn_row.addWidget(origin_btn)
 
+        # 학생·학부모·교사에게 보낼 안내 문구를 AI로 만든다
+        transfer_btn = QPushButton("📨 전달 메시지 ▾")
+        transfer_btn.setObjectName("GhostButton")
+        transfer_btn.setCursor(Qt.PointingHandCursor)
+        transfer_btn.setToolTip("이 메시지를 학생·학부모·선생님께 보낼 안내 문구로 만듭니다")
+        transfer_btn.clicked.connect(
+            lambda checked=False, b=transfer_btn, r=row: self._show_transfer_menu(b, r)
+        )
+        btn_row.addWidget(transfer_btn)
+
         if row["classification"] == "ACTION":
             linked_btn = QPushButton("연결된 업무 보기")
             linked_btn.setObjectName("GhostButton")
@@ -283,6 +295,14 @@ class MessageListView(QWidget):
             return
         for url in urls:
             webbrowser.open(url)
+
+    def _show_transfer_menu(self, btn, row):
+        menu = build_audience_menu(self, lambda audience, r=row: self._open_transfer(r, audience))
+        menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 4)))
+
+    def _open_transfer(self, row, audience):
+        source = transfer_message.source_for_messages([row])
+        TransferMessageDialog(source, audience, self.window()).exec()
 
     def _show_original(self, row):
         _MessageOriginalDialog(row, self).exec()
