@@ -97,10 +97,18 @@ def _migrate_holidays_is_dayoff(conn):
         conn.execute("ALTER TABLE holidays ADD COLUMN is_dayoff INTEGER NOT NULL DEFAULT 1")
 
 
+def _migrate_messages_starred(conn):
+    """1.16.0 — 메시지 즐겨찾기(★). 예전 DB에는 열이 없어 추가한다."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(messages)").fetchall()]
+    if "starred" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN starred INTEGER NOT NULL DEFAULT 0")
+
+
 def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
         _migrate_holidays_is_dayoff(conn)
+        _migrate_messages_starred(conn)
 
 
 # ---------- messages ----------
@@ -269,11 +277,15 @@ def set_setting(key: str, value: str):
 
 # ---------- 메시지 화면용 조회 ----------
 
-def list_messages(days: Optional[int] = None, search: Optional[str] = None):
+def list_messages(days: Optional[int] = None, search: Optional[str] = None,
+                  starred_only: bool = False):
     """'메시지' 화면용 범용 조회.
-    days: 최근 N일로 제한(None이면 전체). search: 제목/발신자/본문 부분 일치."""
+    days: 최근 N일로 제한(None이면 전체). search: 제목/발신자/본문 부분 일치.
+    starred_only: ⭐ 즐겨찾기한 메시지만."""
     query = "SELECT * FROM messages WHERE 1=1"
     params: list = []
+    if starred_only:
+        query += " AND starred = 1"
     if days is not None:
         cutoff = (datetime.now() - timedelta(days=days)).isoformat()
         query += " AND received_at >= ?"
@@ -285,6 +297,19 @@ def list_messages(days: Optional[int] = None, search: Optional[str] = None):
     query += " ORDER BY received_at DESC"
     with get_conn() as conn:
         return conn.execute(query, params).fetchall()
+
+
+def set_message_starred(message_id: str, starred: bool):
+    """메시지 즐겨찾기(★) 켜고 끄기. 즐겨찾기한 메시지는 오래돼도 지우지 않는다
+    (지금은 메시지를 자동으로 지우는 기능이 없지만, 생기면 starred=1은 빼야 한다)."""
+    with get_conn() as conn:
+        conn.execute("UPDATE messages SET starred = ? WHERE message_id = ?",
+                     (1 if starred else 0, message_id))
+
+
+def starred_message_count() -> int:
+    with get_conn() as conn:
+        return conn.execute("SELECT COUNT(*) c FROM messages WHERE starred = 1").fetchone()["c"]
 
 
 def tasks_for_message(message_id: str):

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 from .styles import COLORS
 from .. import db
 from ..core import transfer_message
-from .transfer_message_dialog import TransferMessageDialog, build_audience_menu
+from .transfer_message_dialog import TransferMessageDialog
 from ..core import bulk_complete, dday
 from ..core.deadline_classifier import DeadlineGroup, classify_deadline
 
@@ -119,24 +119,18 @@ class TaskCard(QFrame):
         actions.addWidget(origin_btn)
 
         # 학생·학부모·교사에게 보낼 안내 문구를 AI로 만든다
-        self.transfer_btn = QPushButton("📨 전달 메시지 ▾")
+        self.transfer_btn = QPushButton("📨 전달 메시지")
         self.transfer_btn.setObjectName("GhostButton")
         self.transfer_btn.setCursor(Qt.PointingHandCursor)
         self.transfer_btn.setToolTip("이 업무를 학생·학부모·선생님께 보낼 안내 문구로 만듭니다")
-        self.transfer_btn.clicked.connect(self._show_transfer_menu)
+        self.transfer_btn.clicked.connect(self._open_transfer)
         actions.addWidget(self.transfer_btn)
 
         outer.addLayout(actions)
 
     # ---------- 전달 메시지 ----------
 
-    def _show_transfer_menu(self):
-        menu = build_audience_menu(self, self._open_transfer)
-        btn = self.transfer_btn
-        width = menu.sizeHint().width()
-        menu.exec(btn.mapToGlobal(QPoint(btn.width() - width, btn.height() + 4)))
-
-    def _open_transfer(self, audience):
+    def _open_transfer(self):
         messages = list(db.messages_for_task(self.task_id))
         source = transfer_message.source_for_messages(messages, task=self._task_row)
-        TransferMessageDialog(source, audience, self.window()).exec()
+        TransferMessageDialog(source, parent=self.window()).exec()

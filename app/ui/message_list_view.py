@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from .. import db
 from ..core import transfer_message
-from .transfer_message_dialog import TransferMessageDialog, build_audience_menu
+from .transfer_message_dialog import TransferMessageDialog
 from .common_widgets import build_empty_state
 
 _PERIOD_TABS = [
@@ -24,6 +24,7 @@ _PERIOD_TABS = [
     ("3d", "최근 3일", 3),
     ("7d", "최근 7일", 7),
     ("all", "전체", None),
+    ("starred", "⭐ 즐겨찾기", None),   # 기간과 상관없이 ★한 메시지만
 ]
 
 _STATUS_BADGE = {
@@ -200,13 +201,21 @@ class MessageListView(QWidget):
 
         days = next(d for k, _, d in _PERIOD_TABS if k == self.active_period)
         search = self.search_input.text().strip() or None
-        rows = db.list_messages(days=days, search=search)
+        starred_only = self.active_period == "starred"
+        rows = db.list_messages(days=days, search=search, starred_only=starred_only)
+        self._update_star_tab()
 
         if not rows:
-            empty = build_empty_state(
-                "📭", "표시할 메시지가 없습니다.",
-                "CoolMessenger 메시지를 분석하면\nAI가 해야 할 일을 정리해드립니다."
-            )
+            if starred_only and not search:
+                empty = build_empty_state(
+                    "⭐", "즐겨찾기한 메시지가 없습니다.",
+                    "회의 자료나 해마다 쓰는 양식처럼 다시 찾을 메시지의\n제목 왼쪽 ☆를 눌러 보세요."
+                )
+            else:
+                empty = build_empty_state(
+                    "📭", "표시할 메시지가 없습니다.",
+                    "CoolMessenger 메시지를 분석하면\nAI가 해야 할 일을 정리해드립니다."
+                )
             self.list_layout.addWidget(empty)
         else:
             for row in rows:
@@ -222,6 +231,17 @@ class MessageListView(QWidget):
         v.setSpacing(4)
 
         top_row = QHBoxLayout()
+        top_row.setSpacing(6)
+        starred = bool(row["starred"]) if "starred" in row.keys() else False
+        star_btn = QPushButton("★" if starred else "☆")
+        star_btn.setObjectName("StarButton")
+        star_btn.setProperty("on", starred)
+        star_btn.setCursor(Qt.PointingHandCursor)
+        star_btn.setToolTip("즐겨찾기 빼기" if starred else "즐겨찾기")
+        star_btn.clicked.connect(
+            lambda checked=False, b=star_btn, mid=row["message_id"]: self._toggle_star(b, mid)
+        )
+        top_row.addWidget(star_btn, 0, Qt.AlignTop)
         title = QLabel(row["title"] or "(제목 없음)")
         title.setObjectName("TaskTitle")
         title.setWordWrap(True)
@@ -250,13 +270,11 @@ class MessageListView(QWidget):
         btn_row.addWidget(origin_btn)
 
         # 학생·학부모·교사에게 보낼 안내 문구를 AI로 만든다
-        transfer_btn = QPushButton("📨 전달 메시지 ▾")
+        transfer_btn = QPushButton("📨 전달 메시지")
         transfer_btn.setObjectName("GhostButton")
         transfer_btn.setCursor(Qt.PointingHandCursor)
         transfer_btn.setToolTip("이 메시지를 학생·학부모·선생님께 보낼 안내 문구로 만듭니다")
-        transfer_btn.clicked.connect(
-            lambda checked=False, b=transfer_btn, r=row: self._show_transfer_menu(b, r)
-        )
+        transfer_btn.clicked.connect(lambda checked=False, r=row: self._open_transfer(r))
         btn_row.addWidget(transfer_btn)
 
         if row["classification"] == "ACTION":
@@ -296,13 +314,28 @@ class MessageListView(QWidget):
         for url in urls:
             webbrowser.open(url)
 
-    def _show_transfer_menu(self, btn, row):
-        menu = build_audience_menu(self, lambda audience, r=row: self._open_transfer(r, audience))
-        menu.exec(btn.mapToGlobal(QPoint(0, btn.height() + 4)))
+    def _update_star_tab(self):
+        btn = self._period_buttons.get("starred")
+        if btn is not None:
+            n = db.starred_message_count()
+            btn.setText(f"⭐ 즐겨찾기 {n}" if n else "⭐ 즐겨찾기")
 
-    def _open_transfer(self, row, audience):
+    def _toggle_star(self, btn, message_id):
+        on = btn.text() != "★"
+        db.set_message_starred(message_id, on)
+        if self.active_period == "starred" and not on:
+            self.refresh()  # 즐겨찾기 탭에서 빼면 목록에서 바로 사라진다
+            return
+        btn.setText("★" if on else "☆")
+        btn.setToolTip("즐겨찾기 빼기" if on else "즐겨찾기")
+        btn.setProperty("on", on)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
+        self._update_star_tab()
+
+    def _open_transfer(self, row):
         source = transfer_message.source_for_messages([row])
-        TransferMessageDialog(source, audience, self.window()).exec()
+        TransferMessageDialog(source, parent=self.window()).exec()
 
     def _show_original(self, row):
         _MessageOriginalDialog(row, self).exec()

@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""[📨 전달 메시지 ▾] → 학생/학부모/교사를 고르면 뜨는 창.
+"""[📨 전달 메시지]를 누르면 바로 뜨는 창.
 
-- 위: 받는 사람(학생·학부모·교사) 버튼 — 바꾸면 그 대상용으로 다시 만든다
-  (이미 만든 대상은 다시 부르지 않고 저장해 둔 결과를 보여 준다)
+- 위: 받는 사람(학생·학부모·교사) 버튼 — 고르기만 하고 AI는 부르지 않는다.
+  [✨ 만들기]를 눌러야 만들고, 만든 뒤에는 [🔄 다시 만들기]가 된다.
+  이미 만든 대상에는 ✓가 붙고, 그 대상으로 돌아오면 결과가 남아 있다.
+  처음 열 때는 마지막으로 쓴 대상이 골라져 있다(설정 transfer_last_audience)
 - 가운데: AI에 보낼 내용(이름·전화번호 등은 이미 가린 상태). 고쳐서 다시
   만들 수 있다
 - 아래: 만들어진 메시지 — 그 자리에서 고친 뒤 [복사]
@@ -11,11 +13,19 @@ app/core/transfer_message.py에 있다."""
 
 from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtWidgets import (
-    QApplication, QButtonGroup, QDialog, QHBoxLayout, QLabel, QMenu,
+    QApplication, QButtonGroup, QDialog, QHBoxLayout, QLabel,
     QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout
 )
 
+from .. import db
 from ..core import transfer_message as tm
+
+_LAST_AUDIENCE_KEY = "transfer_last_audience"
+
+
+def last_audience() -> str:
+    value = db.get_setting(_LAST_AUDIENCE_KEY, tm.STUDENT)
+    return value if value in tm.AUDIENCE_NAMES else tm.STUDENT
 
 # 창을 닫아도 아직 돌고 있는 스레드가 파이썬 쪽에서 먼저 사라져 앱이 죽지
 # 않게, 끝날 때까지 여기 붙잡아 둔다.
@@ -40,35 +50,27 @@ class _GenerateThread(QThread):
             self.failed.emit(self._seq, self._audience, str(e))
 
 
-def build_audience_menu(parent, on_pick) -> QMenu:
-    """카드의 [📨 전달 메시지 ▾]가 띄우는 메뉴. on_pick(audience)를 부른다."""
-    menu = QMenu(parent)
-    menu.setObjectName("CompleteMenu")  # 업무 화면 [완료 처리] 메뉴와 같은 모양
-    for key, _name, label in tm.AUDIENCES:
-        action = menu.addAction(label)
-        action.triggered.connect(lambda _=False, k=key: on_pick(k))
-    return menu
-
-
 class TransferMessageDialog(QDialog):
-    def __init__(self, source: dict, audience: str, parent=None):
+    def __init__(self, source: dict, audience: str = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("전달 메시지 만들기")
         self.setMinimumSize(640, 680)
 
         self._source = source
-        self._audience = audience
+        self._audience = audience or last_audience()
         self._results = {}          # audience -> 만든 글(선생님이 고친 것 포함)
         self._seq = 0
         self._busy_audience = None
 
         self._build_ui()
-        self._select_audience(audience, auto=not source.get("sensitive"))
+        self._select_audience(self._audience)
         if source.get("sensitive"):
             self._set_status(
-                "⚠ 상담·민감 정보가 있을 수 있는 메시지라 자동으로 보내지 않았어요. "
-                "가운데 내용을 확인하고 [✨ 만들기]를 눌러 주세요.", warn=True
+                "⚠ 상담·민감 정보가 있을 수 있는 메시지예요. 가운데 내용을 확인하고 "
+                "[✨ 만들기]를 누르면 한 번 더 물어봐요.", warn=True
             )
+        else:
+            self._set_status("받는 사람을 고르고 [✨ 만들기]를 누르세요.")
 
     # ---------- 화면 ----------
 
@@ -130,7 +132,7 @@ class TransferMessageDialog(QDialog):
         res_head.addWidget(self.result_label)
         res_head.addStretch(1)
         self.generate_btn = QPushButton("✨ 만들기")
-        self.generate_btn.setObjectName("SecondaryButton")
+        self.generate_btn.setObjectName("PrimaryButton")
         self.generate_btn.setAutoDefault(False)
         self.generate_btn.setCursor(Qt.PointingHandCursor)
         self.generate_btn.clicked.connect(self._on_generate_clicked)
@@ -139,7 +141,7 @@ class TransferMessageDialog(QDialog):
 
         self.result_edit = QPlainTextEdit()
         self.result_edit.setObjectName("TransferResult")
-        self.result_edit.setPlaceholderText("여기에 전달 메시지가 만들어져요. 그대로 고칠 수 있어요.")
+        self.result_edit.setPlaceholderText("받는 사람을 고르고 [✨ 만들기]를 누르면 여기에 전달 메시지가 만들어져요.\n만든 뒤에는 그대로 고칠 수 있어요.")
         self.result_edit.setMinimumHeight(260)
         self.result_edit.textChanged.connect(self._on_result_edited)
         root.addWidget(self.result_edit, 1)
@@ -180,22 +182,26 @@ class TransferMessageDialog(QDialog):
         has_result = bool(self.result_edit.toPlainText().strip())
         self.generate_btn.setEnabled(not busy)
         self.generate_btn.setText("만드는 중…" if busy else ("🔄 다시 만들기" if has_result else "✨ 만들기"))
+        # 아직 안 만들었으면 눈에 띄는 파란 버튼, 만든 뒤에는 회색 보조 버튼
+        style_name = "SecondaryButton" if has_result else "PrimaryButton"
+        if self.generate_btn.objectName() != style_name:
+            self.generate_btn.setObjectName(style_name)
+            self.generate_btn.style().unpolish(self.generate_btn)
+            self.generate_btn.style().polish(self.generate_btn)
         self.copy_btn.setEnabled(has_result and not busy)
-        self.result_edit.setReadOnly(busy)
+        self.result_edit.setReadOnly(busy or not has_result)
+        # 만들어 둔 대상 버튼에는 ✓
+        for key, b in self._aud_buttons.items():
+            made = bool((self._results.get(key) or "").strip())
+            b.setText(tm.AUDIENCE_NAMES[key] + (" ✓" if made else ""))
 
-    def _select_audience(self, audience, auto=True):
+    def _select_audience(self, audience):
+        """받는 사람 고르기 — AI는 부르지 않는다([✨ 만들기]를 눌러야 만든다)."""
         self._audience = audience
+        db.set_setting(_LAST_AUDIENCE_KEY, audience)
         for k, b in self._aud_buttons.items():
             b.setChecked(k == audience)
         self._show_result(self._results.get(audience, ""))
-        # 상담 등 민감 메시지는 확인창에서 [예]를 누르기 전까지 어떤 경로로도
-        # 자동으로 보내지 않는다(받는 사람 버튼으로 바꿔도 마찬가지).
-        if self._source.get("sensitive"):
-            auto = False
-        if audience not in self._results and auto and self._busy_audience != audience:
-            self._start_generate()
-        else:
-            self._refresh_controls()
 
     def _show_result(self, text):
         self.result_edit.blockSignals(True)
