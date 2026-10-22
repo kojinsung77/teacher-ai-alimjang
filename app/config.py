@@ -80,6 +80,10 @@ def spin_arrow_icon_path(direction: str) -> Path:
     return base / "app" / "ui" / "assets" / f"spin_{direction}_arrow.png"
 
 
+# 구글 캘린더 연결: 이 학교 워크스페이스 계정만 받는다(내부 앱 + 로그인 후 hd 확인).
+# 다른 학교에 배포하게 되면 학교마다 구글 클라우드 프로젝트를 따로 만들고 이 값을 바꾼다.
+GOOGLE_WORKSPACE_DOMAIN = "jungang.hs.kr"
+
 KEYRING_SERVICE = "TeacherAlimjang"
 KEYRING_USERNAME = "gemini_api_key"
 

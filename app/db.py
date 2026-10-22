@@ -66,6 +66,30 @@ CREATE TABLE IF NOT EXISTS holidays (
     name        TEXT,                      -- API가 채워준 경우 "여름방학", "리더십캠프" 등. manual이면 NULL 가능
     is_dayoff   INTEGER NOT NULL DEFAULT 1 -- 1=등교하지 않는 날(자동 알림장 건너뜀), 0=등교하지만 행사가 있는 날
 );
+
+-- 구글 캘린더에 넣은 일정 ↔ 쿨브리핑 업무/메시지 연결 (1.16.0)
+CREATE TABLE IF NOT EXISTS gcal_links (
+    calendar_id  TEXT NOT NULL,
+    event_id     TEXT NOT NULL,
+    task_id      INTEGER,            -- 업무와 연결된 일정이면(휴대폰에서 날짜를 옮기면 마감일도 따라감)
+    message_id   TEXT,
+    msg_key      TEXT,               -- 메시지 해시 — 다른 PC에서 넣은 일정도 알아본다
+    title        TEXT,               -- ✓ 없는 원래 제목
+    last_date    TEXT,               -- 마지막으로 맞춘 일정 날짜(YYYY-MM-DD)
+    created_at   TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (calendar_id, event_id)
+);
+
+-- '일정' 화면에 보여 줄 구글 캘린더 일정 사본(몇 분마다 새로 받아 바꾼다)
+CREATE TABLE IF NOT EXISTS gcal_events (
+    calendar_id  TEXT NOT NULL,
+    event_id     TEXT NOT NULL,
+    title        TEXT,
+    date         TEXT,
+    time         TEXT,
+    is_app       INTEGER DEFAULT 0,   -- 쿨브리핑이 넣은 일정이면 1
+    PRIMARY KEY (calendar_id, event_id)
+);
 """
 
 
@@ -411,3 +435,102 @@ def list_holidays_in_year(year: int) -> list:
             "SELECT * FROM holidays WHERE date LIKE ? ORDER BY date",
             (f"{year}-%",),
         ).fetchall()
+
+
+# ---------- 업무 하나 ----------
+
+def get_task(task_id: int):
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM tasks WHERE task_id = ?", (task_id,)).fetchone()
+
+
+def set_task_deadline(task_id: int, deadline: str):
+    """구글 캘린더에서 날짜를 옮겼을 때 업무 마감일도 따라 바꾼다."""
+    with get_conn() as conn:
+        conn.execute("UPDATE tasks SET deadline = ?, deadline_confidence = 'HIGH' WHERE task_id = ?",
+                     (deadline, task_id))
+
+
+def get_message(message_id: str):
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM messages WHERE message_id = ?", (message_id,)).fetchone()
+
+
+# ---------- 구글 캘린더 연결 ----------
+
+def upsert_gcal_link(calendar_id, event_id, task_id, message_id, msg_key, title, last_date):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO gcal_links (calendar_id, event_id, task_id, message_id, msg_key, title, last_date)
+               VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(calendar_id, event_id) DO UPDATE SET
+                 task_id = COALESCE(excluded.task_id, gcal_links.task_id),
+                 message_id = COALESCE(excluded.message_id, gcal_links.message_id),
+                 msg_key = excluded.msg_key, title = excluded.title, last_date = excluded.last_date""",
+            (calendar_id, event_id, task_id, message_id, msg_key, title, last_date),
+        )
+
+
+def list_gcal_links(calendar_id: str):
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM gcal_links WHERE calendar_id = ?", (calendar_id,)).fetchall()
+
+
+def update_gcal_link(calendar_id, event_id, **fields):
+    if not fields:
+        return
+    cols = ", ".join(f"{k} = ?" for k in fields)
+    with get_conn() as conn:
+        conn.execute(f"UPDATE gcal_links SET {cols} WHERE calendar_id = ? AND event_id = ?",
+                     (*fields.values(), calendar_id, event_id))
+
+
+def delete_gcal_link(calendar_id, event_id):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM gcal_links WHERE calendar_id = ? AND event_id = ?", (calendar_id, event_id))
+
+
+def move_gcal_links(old_calendar_id: str, new_calendar_id: str, event_ids):
+    """일정을 다른 캘린더로 옮긴 뒤 연결도 옮긴다(옮겨도 일정 id는 그대로)."""
+    with get_conn() as conn:
+        for event_id in event_ids:
+            conn.execute("UPDATE OR REPLACE gcal_links SET calendar_id = ? WHERE calendar_id = ? AND event_id = ?",
+                         (new_calendar_id, old_calendar_id, event_id))
+
+
+def task_has_gcal_link(task_id: int, calendar_id: str) -> bool:
+    with get_conn() as conn:
+        return conn.execute("SELECT 1 FROM gcal_links WHERE task_id = ? AND calendar_id = ? LIMIT 1",
+                            (task_id, calendar_id)).fetchone() is not None
+
+
+def message_has_gcal_link(message_id: str, calendar_id: str) -> bool:
+    with get_conn() as conn:
+        return conn.execute("SELECT 1 FROM gcal_links WHERE message_id = ? AND calendar_id = ? LIMIT 1",
+                            (message_id, calendar_id)).fetchone() is not None
+
+
+def replace_gcal_events(calendar_id: str, rows):
+    """'일정' 화면용 사본을 통째로 바꾼다. rows: [(event_id, title, date, time, is_app)]"""
+    with get_conn() as conn:
+        conn.execute("DELETE FROM gcal_events WHERE calendar_id = ?", (calendar_id,))
+        conn.executemany(
+            "INSERT OR REPLACE INTO gcal_events (calendar_id, event_id, title, date, time, is_app) VALUES (?,?,?,?,?,?)",
+            [(calendar_id, *r) for r in rows],
+        )
+
+
+def gcal_events_on(calendar_id: str, date_str: str):
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM gcal_events WHERE calendar_id = ? AND date = ? ORDER BY time = '', time",
+            (calendar_id, date_str),
+        ).fetchall()
+
+
+def gcal_event_dates(calendar_id: str, include_other: bool = True) -> set:
+    q = "SELECT DISTINCT date FROM gcal_events WHERE calendar_id = ?"
+    if not include_other:
+        q += " AND is_app = 1"
+    with get_conn() as conn:
+        return {r["date"] for r in conn.execute(q, (calendar_id,)).fetchall()}
