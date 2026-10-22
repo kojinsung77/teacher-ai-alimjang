@@ -19,3 +19,6 @@ venv/
 app_data/
 *.sqlite3
 *.sqlite3-*
+
+# 버전별 테스트 폴더에 두는 구글 클라이언트 JSON — 커밋 금지
+/google_client.json
