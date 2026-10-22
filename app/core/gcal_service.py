@@ -29,6 +29,7 @@ K_SHOW_OTHER = "gcal_show_other"
 K_FOLLOW = "gcal_follow_dates"
 K_MARK_DONE = "gcal_mark_done"
 K_LAST_SYNC = "gcal_last_sync"
+K_APP_CAL_ID = "gcal_app_calendar_id"   # 한 번 만든 '쿨브리핑' 캘린더 — 다시 고르면 새로 만들지 않고 쓴다
 
 SYNC_PAST_DAYS = 60
 SYNC_FUTURE_DAYS = 365
@@ -324,6 +325,20 @@ def sync(today: Optional[date] = None) -> Optional[dict]:
 
 
 # ---------- 캘린더 바꾸기 ----------
+
+def ensure_app_calendar() -> dict:
+    """'쿨브리핑' 전용 캘린더. 예전에 만든 게 아직 있으면 그걸 쓰고, 없으면 만든다."""
+    old = db.get_setting(K_APP_CAL_ID, "")
+    if old:
+        try:
+            gcal_api.check_calendar(old)
+            return {"id": old, "summary": "쿨브리핑", "reused": True}
+        except gcal_api.GCalError:
+            pass  # 지워졌다 — 새로 만든다
+    cal = gcal_api.create_app_calendar("쿨브리핑")
+    db.set_setting(K_APP_CAL_ID, cal["id"])
+    return {"id": cal["id"], "summary": "쿨브리핑", "reused": False}
+
 
 def change_calendar(new_mode: str, new_id: str, new_name: str, move_existing: bool) -> dict:
     """일정을 넣을 캘린더를 바꾼다. move_existing이면 이미 넣은 일정을 새 캘린더로 옮긴다."""

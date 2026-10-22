@@ -22,6 +22,9 @@ from ..core import (
     autostart, daily_note, holidays_sync, mascot_settings, session_lock, stats,
     task_manager, update_check,
 )
+from ..core import gcal_service
+from .app_events import hub
+from .bg_task import run_in_background
 from .common_widgets import Toast
 from . import mascot_walker
 from .update_modal import UpdateModal
@@ -144,6 +147,11 @@ _UPDATE_RECHECK_INTERVAL_MS = 2 * 60 * 60 * 1000
 # 아침에 앱이 처음 켜졌을 때 파랑새를 내보내기까지 기다리는 시간(ms) —
 # 로그인 직후 바탕화면·작업표시줄이 다 그려진 뒤에 나오게.
 _STARTUP_MASCOT_DELAY_MS = 8000
+# 구글 캘린더 맞추기: 앱을 켜고 조금 뒤 한 번, 그다음 5분마다. 화면 이동 같은
+# '자동' 계기로는 1분 안에 두 번 돌리지 않는다(버튼·일정 넣기는 바로 돈다).
+_GCAL_STARTUP_DELAY_MS = 12000
+_GCAL_INTERVAL_MS = 5 * 60 * 1000
+_GCAL_MIN_GAP_SEC = 60
 # "오늘 앱이 처음 켜질 때 파랑새를 이미 내보냈다"는 날짜(YYYY-MM-DD).
 # 업데이트 설치 뒤 자동 재시작 등으로 같은 날 다시 켜질 때는 또 나오지
 # 않게 한다(그날 잠금 해제·정기 알림 때는 그대로 나온다).
@@ -370,6 +378,24 @@ class MainWindow(QMainWindow):
         self._start_holiday_sync()
         self._maybe_auto_generate_note()
 
+        # ---- 구글 캘린더 맞추기 ----
+        self._gcal_running = False
+        self._gcal_again = False
+        self._gcal_last_run = 0.0
+        self._gcal_manual = self._gcal_force = False
+        self._gcal_timer = QTimer(self)
+        self._gcal_timer.timeout.connect(lambda: self._run_gcal_sync())
+        self._gcal_timer.start(_GCAL_INTERVAL_MS)
+        # 업무를 완료·되돌리기하면 몇 초 뒤 한 번만(연달아 눌러도 한 번) 맞춰 ✓를 붙인다
+        self._gcal_debounce = QTimer(self)
+        self._gcal_debounce.setSingleShot(True)
+        self._gcal_debounce.setInterval(4000)
+        self._gcal_debounce.timeout.connect(lambda: self._run_gcal_sync(force=True))
+        self.task_list_view.tasksChanged.connect(lambda *_: self._gcal_debounce.start())
+        hub.calendarChanged.connect(lambda: self._run_gcal_sync(force=True))
+        hub.syncRequested.connect(lambda: self._run_gcal_sync(manual=True))
+        QTimer.singleShot(_GCAL_STARTUP_DELAY_MS, lambda: self._run_gcal_sync())
+
     def _apply_auto_sync_interval(self):
         """db의 auto_check_interval_min("0"=끄기)과 demo_mode를 기준으로
         타이머를 다시 맞춘다. 설정 페이지에서 주기를 바꾸거나 데모 모드가
@@ -418,6 +444,72 @@ class MainWindow(QMainWindow):
 
         self._pending_auto_note = True
         self._run_auto_sync()
+
+    # ---------- 구글 캘린더 ----------
+
+    def _run_gcal_sync(self, manual: bool = False, force: bool = False):
+        """manual: [🔄 지금 맞추기]를 눌렀다(결과를 토스트로 알린다).
+        force: 일정을 넣었거나 설정이 바뀌었다(간격 제한 없이 바로)."""
+        try:
+            ready = gcal_service.is_ready()
+        except Exception:
+            ready = False
+        if not ready:
+            if manual:
+                hub.syncFinished.emit(None)
+            return
+        if self._gcal_running:
+            self._gcal_again = True     # 지금 도는 게 끝나면 한 번 더
+            return
+        if not (manual or force) and time.time() - self._gcal_last_run < _GCAL_MIN_GAP_SEC:
+            return
+        self._gcal_running = True
+        self._gcal_last_run = time.time()
+        self._gcal_manual = manual
+        self._gcal_force = force
+        self.calendar_view.set_syncing(True)
+        run_in_background(gcal_service.sync, self._on_gcal_sync_done, self._on_gcal_sync_error)
+
+    def _on_gcal_sync_done(self, result):
+        self._gcal_running = False
+        hub.syncFinished.emit(result)
+        result = result or {}
+        moved, unlinked = result.get("moved", 0), result.get("unlinked", 0)
+        if moved or unlinked or self._gcal_force:
+            # 업무 마감일이 바뀌었거나 카드의 '📅 캘린더에 있음' 표시가 바뀌었을 수 있다
+            self._refresh_current_page()
+            self._refresh_mascot_count()
+        if moved:
+            self.toast.show_message(f"휴대폰에서 바뀐 일정 {moved}건을 반영했어요", duration_ms=5000)
+        elif self._gcal_manual:
+            msg = "구글 캘린더와 맞췄어요"
+            if unlinked:
+                msg += f" · 지워진 일정 {unlinked}건은 연결만 풀었어요(업무는 그대로)"
+            self.toast.show_message(msg)
+        if self._gcal_again:
+            self._gcal_again = False
+            self._run_gcal_sync(force=True)
+
+    def _on_gcal_sync_error(self, message: str):
+        self._gcal_running = False
+        hub.syncFailed.emit(message)
+        print(f"[구글 캘린더 맞추기 오류] {message}")
+        if self._gcal_manual:
+            self.toast.show_message(message.splitlines()[0] if message else "구글 캘린더와 맞추지 못했어요",
+                                    duration_ms=6000)
+        if self._gcal_again:
+            self._gcal_again = False
+
+    def _refresh_current_page(self):
+        key = self.current_page_key
+        if key == "today":
+            self.dashboard_view.refresh()
+        elif key == "tasks":
+            self.task_list_view.refresh()
+        elif key == "messages":
+            self.message_list_view.refresh()
+        elif key == "calendar":
+            self.calendar_view.refresh()
 
     def _start_holiday_sync(self):
         self._holiday_sync_thread = _HolidaySyncThread(self)
@@ -868,6 +960,9 @@ class MainWindow(QMainWindow):
             self.message_list_view.refresh()
         elif key == "calendar":
             self.calendar_view.refresh()
+            # 휴대폰에서 바꾼 것을 바로 보이게 — 1분 안에 이미 맞췄으면 건너뛴다
+            if hasattr(self, "_gcal_running"):
+                self._run_gcal_sync()
         elif key == "history":
             self.history_view.refresh()
         elif key == "settings":

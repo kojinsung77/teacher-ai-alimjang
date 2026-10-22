@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 from .. import db
 from ..core import transfer_message
 from .transfer_message_dialog import TransferMessageDialog
+from ..core import gcal_service, google_auth
+from .app_events import hub
 from .common_widgets import build_empty_state
 
 _PERIOD_TABS = [
@@ -198,6 +200,7 @@ class MessageListView(QWidget):
 
     def refresh(self):
         self._clear_list()
+        self._gcal_available = google_auth.is_available()   # 카드마다 파일을 읽지 않게 한 번만
 
         days = next(d for k, _, d in _PERIOD_TABS if k == self.active_period)
         search = self.search_input.text().strip() or None
@@ -277,6 +280,15 @@ class MessageListView(QWidget):
         transfer_btn.clicked.connect(lambda checked=False, r=row: self._open_transfer(r))
         btn_row.addWidget(transfer_btn)
 
+        if self._gcal_available:
+            in_cal = gcal_service.is_ready() and db.message_has_gcal_link(row["message_id"], gcal_service.calendar_id())
+            cal_btn = QPushButton("📅 캘린더에 있음 ✓" if in_cal else "📅 일정에 넣기")
+            cal_btn.setObjectName("GcalDoneButton" if in_cal else "GcalButton")
+            cal_btn.setCursor(Qt.PointingHandCursor)
+            cal_btn.setToolTip("이 메시지에서 일정을 찾아 구글 캘린더에 넣습니다")
+            cal_btn.clicked.connect(lambda checked=False, r=row: self._open_calendar(r))
+            btn_row.addWidget(cal_btn)
+
         if row["classification"] == "ACTION":
             linked_btn = QPushButton("연결된 업무 보기")
             linked_btn.setObjectName("GhostButton")
@@ -332,6 +344,12 @@ class MessageListView(QWidget):
         btn.style().unpolish(btn)
         btn.style().polish(btn)
         self._update_star_tab()
+
+    def _open_calendar(self, row):
+        from .gcal_event_dialog import GCalEventDialog
+        dlg = GCalEventDialog([db.get_message(row["message_id"]) or row], label=row["title"] or "", parent=self.window())
+        dlg.saved.connect(lambda _r: hub.calendarChanged.emit())
+        dlg.exec()
 
     def _open_transfer(self, row):
         source = transfer_message.source_for_messages([row])

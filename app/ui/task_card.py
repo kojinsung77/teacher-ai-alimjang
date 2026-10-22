@@ -11,6 +11,8 @@ from .styles import COLORS
 from .. import db
 from ..core import transfer_message
 from .transfer_message_dialog import TransferMessageDialog
+from ..core import gcal_service, google_auth
+from .app_events import hub
 from ..core import bulk_complete, dday
 from ..core.deadline_classifier import DeadlineGroup, classify_deadline
 
@@ -126,6 +128,18 @@ class TaskCard(QFrame):
         self.transfer_btn.clicked.connect(self._open_transfer)
         actions.addWidget(self.transfer_btn)
 
+        # 구글 캘린더에 일정 넣기 — 이미 넣었으면 초록 "캘린더에 있음 ✓".
+        # 구글 연결 정보가 없는 빌드에서는 버튼 자체를 두지 않는다.
+        self.cal_btn = None
+        if google_auth.is_available():
+            in_cal = gcal_service.is_ready() and db.task_has_gcal_link(self.task_id, gcal_service.calendar_id())
+            self.cal_btn = QPushButton("📅 캘린더에 있음 ✓" if in_cal else "📅 일정에 넣기")
+            self.cal_btn.setObjectName("GcalDoneButton" if in_cal else "GcalButton")
+            self.cal_btn.setCursor(Qt.PointingHandCursor)
+            self.cal_btn.setToolTip("구글 캘린더에 이 업무 일정을 넣습니다(이미 있으면 고쳐요)")
+            self.cal_btn.clicked.connect(self._open_calendar)
+            actions.addWidget(self.cal_btn)
+
         outer.addLayout(actions)
 
     # ---------- 전달 메시지 ----------
@@ -134,3 +148,13 @@ class TaskCard(QFrame):
         messages = list(db.messages_for_task(self.task_id))
         source = transfer_message.source_for_messages(messages, task=self._task_row)
         TransferMessageDialog(source, parent=self.window()).exec()
+
+    # ---------- 구글 캘린더 ----------
+
+    def _open_calendar(self):
+        from .gcal_event_dialog import GCalEventDialog
+        messages = list(db.messages_for_task(self.task_id))
+        task = db.get_task(self.task_id) or self._task_row
+        dlg = GCalEventDialog(messages, task=task, label=self._task_row["title"], parent=self.window())
+        dlg.saved.connect(lambda _r: hub.calendarChanged.emit())
+        dlg.exec()

@@ -117,23 +117,31 @@ def _keyring():
     return keyring
 
 
+# 카드마다 '연결됐나'를 묻기 때문에 키링(Windows 자격 증명)을 매번 읽지 않게
+# 메모리에 한 번 읽어 둔다. 저장·삭제할 때 함께 바꾼다.
+_CREDS_CACHE = {"loaded": False, "data": {}}
+
+
 def load_credentials() -> dict:
     """{'refresh_token','scope','email'} 또는 {}."""
+    if _CREDS_CACHE["loaded"]:
+        return dict(_CREDS_CACHE["data"])
+    data = {}
     try:
         raw = _keyring().get_password(config.KEYRING_SERVICE, _KEYRING_USERNAME)
+        if raw:
+            parsed = json.loads(raw)
+            if parsed.get("refresh_token"):
+                data = parsed
     except Exception:
-        return {}
-    if not raw:
-        return {}
-    try:
-        data = json.loads(raw)
-        return data if data.get("refresh_token") else {}
-    except ValueError:
-        return {}
+        data = {}
+    _CREDS_CACHE.update({"loaded": True, "data": data})
+    return dict(data)
 
 
 def _save_credentials(data: dict):
     _keyring().set_password(config.KEYRING_SERVICE, _KEYRING_USERNAME, json.dumps(data))
+    _CREDS_CACHE.update({"loaded": True, "data": dict(data)})
 
 
 def _delete_credentials():
@@ -141,6 +149,7 @@ def _delete_credentials():
         _keyring().delete_password(config.KEYRING_SERVICE, _KEYRING_USERNAME)
     except Exception:
         pass
+    _CREDS_CACHE.update({"loaded": True, "data": {}})
 
 
 def is_connected() -> bool:

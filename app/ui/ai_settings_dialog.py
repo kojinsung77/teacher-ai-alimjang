@@ -718,6 +718,23 @@ class SettingsPageView(QWidget, _SettingsFormMixin):
         privacy_card.clicked.connect(self.on_open_privacy_masking)
         self.grid.addWidget(privacy_card, 1, 1)
 
+        # 구글 캘린더 — 구글 클라이언트 설정이 들어 있는 빌드에서만 보인다
+        from ..core import google_auth, gcal_service
+        if google_auth.is_available():
+            try:
+                ready = gcal_service.is_ready()
+            except Exception:
+                ready = False
+            if ready:
+                gcal_badge = ("✓ 연결됨", True)
+                gcal_desc = f"{gcal_service.calendar_name() or '구글 캘린더'} · {google_auth.connected_email()}"
+            else:
+                gcal_badge = ("연결 안 함", False)
+                gcal_desc = "학교 구글 계정으로 연결해 휴대폰 캘린더와 일정을 함께 써요"
+            gcal_card = _SettingsCard("📅", "구글 캘린더", gcal_desc, badge=gcal_badge)
+            gcal_card.clicked.connect(self.on_open_gcal)
+            self.grid.addWidget(gcal_card, 2, 0)
+
     # ---------- 액션 ----------
 
     def on_open_general(self):
@@ -736,6 +753,11 @@ class SettingsPageView(QWidget, _SettingsFormMixin):
         MessengerSetupDialog(self).exec()
         # 메신저 재설정으로 demo_mode/로그인명이 바뀌었을 수 있다.
         self.settingsChanged.emit()
+        self.refresh()
+
+    def on_open_gcal(self):
+        from .gcal_settings_dialog import GCalSettingsDialog
+        GCalSettingsDialog(self).exec()   # 바뀌면 스스로 hub.calendarChanged를 울린다
         self.refresh()
 
     def on_open_privacy_masking(self):

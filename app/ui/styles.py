@@ -380,6 +380,57 @@ QTextBrowser#ManualDoc {{
     padding: 14px 18px;
 }}
 
+/* ---------- 📅 구글 캘린더 ---------- */
+QPushButton#GcalButton {{
+    background-color: {COLORS['card_bg']};
+    color: #1A73E8;
+    border: 1px solid #D3E0FA;
+    border-radius: 9px;
+    padding: 7px 13px;
+    font-size: 12px;
+    font-weight: 700;
+}}
+QPushButton#GcalButton:hover {{
+    background-color: #F2F6FE;
+}}
+QPushButton#GcalDoneButton {{
+    background-color: {COLORS['success_bg']};
+    color: {COLORS['success']};
+    border: 1px solid #CDEBDC;
+    border-radius: 9px;
+    padding: 7px 13px;
+    font-size: 12px;
+    font-weight: 700;
+}}
+QLabel#GcalCurrent, QFrame#GcalAccount {{
+    background-color: #F2F6FE;
+    border-radius: 10px;
+    padding: 8px 12px;
+    color: {COLORS['text_primary']};
+    font-size: 13px;
+}}
+QLabel#GcalDupTag {{
+    background-color: {COLORS['stat_orange_bg']};
+    color: #9A6A0E;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+}}
+QLabel#GcalTaskTag {{
+    background-color: #E3ECFF;
+    color: #1E4FD8;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+}}
+QFrame#GcalSyncBar {{
+    background-color: {COLORS['card_bg']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 12px;
+}}
+
 /* ---------- 메시지 즐겨찾기 ☆/★ ---------- */
 QPushButton#StarButton {{
     background: transparent;

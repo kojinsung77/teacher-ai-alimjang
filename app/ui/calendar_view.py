@@ -15,18 +15,30 @@ QCalendarWidget은 날짜 칸에 배경색/밑줄을 입히는 setDateTextFormat
 보완하려고 캘린더 아래에 "이번 달 학사일정" 목록(월 이동 시 함께
 갱신)을 별도로 둔다. 캘린더를 직접 그리는 방식으로 새로 만드는 대신 이
 방식을 택한 이유는 지금 잘 작동하는 캘린더 부품(월 이동/날짜 클릭/업무
-마감일 색칠)을 전혀 건드리지 않아도 되기 때문이다."""
+마감일 색칠)을 전혀 건드리지 않아도 되기 때문이다.
+
+v1.16.0: 구글 캘린더와 연결돼 있으면 위쪽 막대에 연결 상태와 [🔄 지금 맞추기]를
+두고, 구글 캘린더에 있는 일정도 달력(파란 글씨)과 오른쪽 날짜 목록에 함께
+보여 준다. 쿨브리핑이 넣은 일정은 휴대폰에서 바꾸면 따라오고, 그 밖의 일정은
+'다른 일정도 보기'를 켰을 때만 보기 전용으로 나온다. 맞추기 자체는 메인 창이
+돌리고(app_events.hub), 이 화면은 결과만 받아 다시 그린다."""
+
+from datetime import date, datetime
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QCalendarWidget,
-    QScrollArea, QCheckBox, QSplitter
+    QScrollArea, QCheckBox, QSplitter, QPushButton
 )
 
 from .. import db
-from ..core import stats
+from ..core import stats, google_auth, gcal_service as gsvc
+from .app_events import hub
 from .styles import COLORS
+
+_GCAL_BG = "#E8F0FE"
+_GCAL_FG = "#1A73E8"
 
 _WEEKDAY_KR = ["월", "화", "수", "목", "금", "토", "일"]
 
@@ -46,7 +58,11 @@ class CalendarView(QWidget):
         # 다시 초기화한다.
         self._month_event_rows = {}
         self._highlighted_month_event_date = None
+        self._sync_error = ""
+        self._syncing = False
         self._build_ui()
+        hub.syncFinished.connect(self._on_sync_finished)
+        hub.syncFailed.connect(self._on_sync_failed)
         self.refresh()
 
     # ---------- UI 구성 ----------
@@ -65,6 +81,26 @@ class CalendarView(QWidget):
         subtitle.setObjectName("Muted")
         header.addWidget(subtitle)
         root.addLayout(header)
+
+        # 구글 캘린더 연결 상태 막대 — 클라이언트 설정이 없는 빌드에선 숨긴다
+        self.sync_bar = QFrame()
+        self.sync_bar.setObjectName("GcalSyncBar")
+        sb = QHBoxLayout(self.sync_bar)
+        sb.setContentsMargins(14, 8, 10, 8)
+        sb.setSpacing(10)
+        self.sync_label = QLabel("")
+        self.sync_label.setWordWrap(True)
+        sb.addWidget(self.sync_label, 1)
+        self.show_other_check = QCheckBox("다른 일정도 보기")
+        self.show_other_check.setToolTip("쿨브리핑이 넣지 않은 일정도 보기 전용으로 함께 보여 줘요.")
+        self.show_other_check.toggled.connect(self._on_show_other_toggled)
+        sb.addWidget(self.show_other_check)
+        self.sync_btn = QPushButton("🔄 지금 맞추기")
+        self.sync_btn.setObjectName("SecondaryButton")
+        self.sync_btn.setCursor(Qt.PointingHandCursor)
+        self.sync_btn.clicked.connect(self._on_sync_btn)
+        sb.addWidget(self.sync_btn)
+        root.addWidget(self.sync_bar)
 
         content_row = QHBoxLayout()
         content_row.setSpacing(16)
@@ -229,6 +265,87 @@ class CalendarView(QWidget):
     # ---------- 데이터 로딩/표시 ----------
 
     def refresh(self):
+        self._update_sync_bar()
+        self._mark_calendar_dates()
+        self._render_selected_day()
+
+    # ---------- 구글 캘린더 ----------
+
+    def _gcal_ready(self) -> bool:
+        try:
+            return gsvc.is_ready()
+        except Exception:
+            return False
+
+    @staticmethod
+    def _last_sync_text() -> str:
+        raw = db.get_setting(gsvc.K_LAST_SYNC, "") or ""
+        try:
+            t = datetime.fromisoformat(raw)
+        except ValueError:
+            return "아직 안 맞춤"
+        if t.date() == date.today():
+            return f"오늘 {t:%H:%M}에 맞춤"
+        return f"{t.month}/{t.day} {t:%H:%M}에 맞춤"
+
+    def _update_sync_bar(self):
+        if not google_auth.is_available():
+            self.sync_bar.setVisible(False)
+            return
+        self.sync_bar.setVisible(True)
+        ready = self._gcal_ready()
+        self.show_other_check.setVisible(ready)
+        if not ready:
+            self.sync_label.setText("📅 구글 캘린더가 아직 연결되지 않았어요. 연결하면 휴대폰에서도 같은 일정을 볼 수 있어요.")
+            self.sync_btn.setText("설정에서 연결하기")
+            self.sync_btn.setEnabled(True)
+            return
+        self.show_other_check.blockSignals(True)
+        self.show_other_check.setChecked(gsvc.option(gsvc.K_SHOW_OTHER))
+        self.show_other_check.blockSignals(False)
+        name = gsvc.calendar_name() or "구글 캘린더"
+        bits = [f"📅 <b>{_esc(name)}</b>", _esc(google_auth.connected_email())]
+        if self._syncing:
+            bits.append("맞추는 중…")
+        elif self._sync_error:
+            bits.append(f"<span style='color:{COLORS['today']}'>⚠ {_esc(self._sync_error)}</span>")
+        else:
+            bits.append(self._last_sync_text())
+        self.sync_label.setText("  ·  ".join(b for b in bits if b))
+        self.sync_btn.setText("맞추는 중…" if self._syncing else "🔄 지금 맞추기")
+        self.sync_btn.setEnabled(not self._syncing)
+
+    def _on_sync_btn(self):
+        if not self._gcal_ready():
+            from .gcal_settings_dialog import GCalSettingsDialog
+            GCalSettingsDialog(self.window()).exec()
+            self.refresh()
+            return
+        self._syncing = True
+        self._sync_error = ""
+        self._update_sync_bar()
+        hub.syncRequested.emit()
+
+    def set_syncing(self, on: bool):
+        """메인 창이 (버튼이 아닌 이유로) 맞추기를 시작할 때도 막대에 보이게."""
+        self._syncing = on
+        self._update_sync_bar()
+
+    def _on_sync_finished(self, _result):
+        self._syncing = False
+        self._sync_error = ""
+        if self.isVisible():
+            self.refresh()
+        else:
+            self._update_sync_bar()   # 다시 열 때 switch_page가 전체를 다시 그린다
+
+    def _on_sync_failed(self, msg: str):
+        self._syncing = False
+        self._sync_error = msg.splitlines()[0][:80] if msg else "맞추지 못했어요"
+        self._update_sync_bar()
+
+    def _on_show_other_toggled(self, on: bool):
+        gsvc.set_option(gsvc.K_SHOW_OTHER, on)
         self._mark_calendar_dates()
         self._render_selected_day()
 
@@ -284,7 +401,23 @@ class CalendarView(QWidget):
         event_fmt.setForeground(QColor(COLORS["event_accent"]))
         event_fmt.setFont(event_font)
 
-        all_dates = task_dates | dayoff_dates | event_dates
+        # 구글 캘린더 일정이 있는 날 — 다른 표시가 없는 날만 파란 글씨로 칠한다
+        # (업무 마감일·학사일정 색이 우선. 그 날을 누르면 목록에 함께 나온다)
+        gcal_dates = set()
+        if self._gcal_ready():
+            gcal_dates = db.gcal_event_dates(gsvc.calendar_id(),
+                                             include_other=gsvc.option(gsvc.K_SHOW_OTHER))
+        gcal_fmt = QTextCharFormat()
+        gcal_fmt.setBackground(QColor(_GCAL_BG))
+        gcal_fmt.setForeground(QColor(_GCAL_FG))
+        gcal_fmt.setFont(event_font)
+        base_dates = task_dates | dayoff_dates | event_dates
+        for d_str in gcal_dates - base_dates:
+            qdate = QDate.fromString(d_str, "yyyy-MM-dd")
+            if qdate.isValid():
+                self.calendar.setDateTextFormat(qdate, gcal_fmt)
+
+        all_dates = base_dates
         for d_str in all_dates:
             qdate = QDate.fromString(d_str, "yyyy-MM-dd")
             if not qdate.isValid():
@@ -301,7 +434,7 @@ class CalendarView(QWidget):
                 fmt = event_fmt
             self.calendar.setDateTextFormat(qdate, fmt)
 
-        self._marked_dates = all_dates
+        self._marked_dates = all_dates | gcal_dates
         self._render_month_events(holiday_rows)
 
     def _render_month_events(self, holiday_rows):
@@ -410,7 +543,8 @@ class CalendarView(QWidget):
             self.day_event_label.setVisible(False)
 
         tasks = [t for t in stats.todo_tasks() if t["deadline"] == date_str]
-        if not tasks:
+        gcal_rows, linked_task_ids = self._gcal_rows_for(date_str, {t["id"] for t in tasks})
+        if not tasks and not gcal_rows:
             empty = QLabel("이 날짜에 마감인 업무가 없습니다.")
             empty.setObjectName("Muted")
             self.panel_list_layout.addWidget(empty)
@@ -434,13 +568,59 @@ class CalendarView(QWidget):
             department = t["department"] if "department" in t.keys() else None
             if department:
                 meta_bits.append(department)
+            if t["id"] in linked_task_ids:
+                meta_bits.append("📅 구글 캘린더에 있음")
             meta = QLabel("  ·  ".join(meta_bits))
             meta.setObjectName("TaskMeta")
             v.addWidget(meta)
 
             self.panel_list_layout.addWidget(row)
 
+        if gcal_rows:
+            head = QLabel("구글 캘린더")
+            head.setObjectName("Muted")
+            self.panel_list_layout.addWidget(head)
+        for ev in gcal_rows:
+            self.panel_list_layout.addWidget(self._gcal_event_row(ev))
+
         self.panel_list_layout.addStretch(1)
+
+    def _gcal_rows_for(self, date_str: str, shown_task_ids: set):
+        """그 날 보여 줄 구글 일정과, 캘린더에 연결된 업무 id들.
+        업무 카드로 이미 보이는 일정(같은 업무에 연결된 일정)은 두 번 보이지 않게 뺀다."""
+        if not self._gcal_ready():
+            return [], set()
+        cal = gsvc.calendar_id()
+        links = {l["event_id"]: l for l in db.list_gcal_links(cal)}
+        linked_task_ids = {l["task_id"] for l in links.values() if l["task_id"]}
+        show_other = gsvc.option(gsvc.K_SHOW_OTHER)
+        rows = []
+        for ev in db.gcal_events_on(cal, date_str):
+            if not ev["is_app"] and not show_other:
+                continue
+            link = links.get(ev["event_id"])
+            if link is not None and link["task_id"] in shown_task_ids:
+                continue
+            rows.append(ev)
+        return rows, linked_task_ids
+
+    @staticmethod
+    def _gcal_event_row(ev) -> QFrame:
+        row = QFrame()
+        row.setObjectName("Card")
+        v = QVBoxLayout(row)
+        v.setContentsMargins(12, 10, 12, 10)
+        v.setSpacing(3)
+        when = f"{ev['time']}  " if ev["time"] else ""
+        title = QLabel(f"📅  {when}{ev['title']}")
+        title.setObjectName("TaskTitle")
+        title.setWordWrap(True)
+        v.addWidget(title)
+        meta = QLabel("🔁 쿨브리핑 일정 · 휴대폰에서 바꾸면 따라와요" if ev["is_app"]
+                      else "👁 다른 일정 · 보기 전용")
+        meta.setObjectName("TaskMeta")
+        v.addWidget(meta)
+        return row
 
     # ---------- 액션 ----------
 
@@ -461,3 +641,7 @@ class CalendarView(QWidget):
             db.remove_holiday(date_str)
         self._mark_calendar_dates()
         self._render_selected_day()
+
+
+def _esc(text) -> str:
+    return (str(text or "")).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
