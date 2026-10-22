@@ -28,6 +28,7 @@ from .update_modal import UpdateModal
 from .update_popup import UpdatePopup
 from .dashboard_view import DashboardView
 from .task_list_view import TaskListView
+from .manual_view import ManualView
 from .message_list_view import MessageListView
 from .calendar_view import CalendarView
 from .history_view import HistoryView
@@ -119,6 +120,7 @@ _NAV_ITEMS = [
     ("calendar", "▦", "일정"),
     ("history", "▣", "지난 알림장"),
     ("settings", "⚙", "설정"),
+    ("manual", "📖", "사용설명서"),
 ]
 
 # (하루 중 시각 "HH:MM", 알림 문구 — {n}은 미완료 업무 건수로 채워짐)
@@ -285,6 +287,9 @@ class MainWindow(QMainWindow):
         self.settings_view.settingsChanged.connect(self._refresh_demo_mode)
         self.settings_view.updateFound.connect(self._on_update_check_result)
         self._add_page("settings", self.settings_view)
+
+        self.manual_view = ManualView()
+        self._add_page("manual", self.manual_view)
 
         content_layout.addWidget(self.stack)
         root.addWidget(content, 1)

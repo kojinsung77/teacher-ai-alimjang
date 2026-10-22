@@ -353,6 +353,51 @@ QListWidget#BulkPickList::indicator:checked {{
     image: url({_CHECKMARK_URL});
 }}
 
+/* ---------- 📖 사용설명서 ---------- */
+QListWidget#ManualToc {{
+    background-color: white;
+    border: 1px solid {COLORS['border']};
+    border-radius: 14px;
+    padding: 6px;
+    outline: none;
+    font-size: 13px;
+    font-weight: 700;
+}}
+QListWidget#ManualToc::item {{
+    color: {COLORS['text_primary']};
+    padding: 8px 10px;
+    border-radius: 8px;
+}}
+QListWidget#ManualToc::item:hover {{
+    background-color: #F3F6FD;
+}}
+QListWidget#ManualToc::item:selected {{
+    background-color: {COLORS['stat_blue_bg']};
+    color: {COLORS['accent']};
+}}
+QTextBrowser#ManualDoc {{
+    background-color: white;
+    color: {COLORS['text_primary']};
+    border: 1px solid {COLORS['border']};
+    border-radius: 14px;
+    padding: 14px 20px;
+}}
+
+/* ---------- 메시지 즐겨찾기 ☆/★ ---------- */
+QPushButton#StarButton {{
+    background: transparent;
+    border: none;
+    color: #C3CAD7;
+    font-size: 19px;
+    padding: 0 4px 0 0;
+}}
+QPushButton#StarButton:hover {{
+    color: #E0A800;
+}}
+QPushButton#StarButton[on="true"] {{
+    color: #F2B705;
+}}
+
 /* ---------- [📨 전달 메시지] 창 ---------- */
 QPlainTextEdit#TransferSource {{
     background-color: #F7F9FC;
