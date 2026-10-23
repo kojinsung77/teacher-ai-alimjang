@@ -1,5 +1,5 @@
 ﻿# 쿨브리핑 테스트 버전 폴더 자동 받기
-# 깃허브에 올라온 'test-vX.Y.Z' 태그(배포 전 테스트 버전)마다 vX.Y.Z 폴더를 이 폴더 옆에 만든다.
+# 깃허브에 올라온 'test/vX.Y.Z' 브랜치(배포 전 테스트 버전)마다 vX.Y.Z 폴더를 이 폴더 옆에 만든다.
 # - 이미 있는 폴더는 절대 덮어쓰지 않는다(선생님이 넣어 둔 파일 보호).
 # - 이 폴더에 google_client.json이 있으면 새 버전 폴더에도 복사한다.
 # - -Quiet: 컴퓨터 켤 때 자동 확인용. 새 폴더가 생겼을 때만 알림 창을 띄운다.
@@ -22,15 +22,15 @@ $Dest = (Resolve-Path -LiteralPath $Dest).Path
 Say "쿨브리핑 테스트 버전 확인 중... ($Dest)"
 
 try {
-    $tags = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/tags?per_page=100" -Headers $Headers -UseBasicParsing
+    $refs = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/branches?per_page=100" -Headers $Headers -UseBasicParsing
 } catch {
     Say "깃허브에 연결하지 못했습니다: $($_.Exception.Message)"
     Done 1
 }
 
 $made = @()
-foreach ($t in $tags) {
-    if ($t.name -notmatch '^test-v(\d+\.\d+\.\d+)$') { continue }
+foreach ($t in $refs) {
+    if ($t.name -notmatch '^test/v(\d+\.\d+\.\d+)$') { continue }
     $ver = $Matches[1]
     $target = Join-Path $Dest "v$ver"
     if (Test-Path -LiteralPath $target) { continue }
@@ -40,7 +40,7 @@ foreach ($t in $tags) {
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
         $zip = Join-Path $tmp 'src.zip'
-        Invoke-WebRequest -Uri "https://github.com/$Repo/archive/refs/tags/$($t.name).zip" -OutFile $zip -Headers $Headers -UseBasicParsing
+        Invoke-WebRequest -Uri "https://github.com/$Repo/archive/refs/heads/$($t.name).zip" -OutFile $zip -Headers $Headers -UseBasicParsing
         $x = Join-Path $tmp 'x'
         Expand-Archive -LiteralPath $zip -DestinationPath $x -Force
         $inner = Get-ChildItem -LiteralPath $x -Directory | Select-Object -First 1
