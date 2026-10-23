@@ -18,22 +18,28 @@
 
 ## 배포 범위
 - 이 앱은 현재 전주중앙여자고등학교 내부에서만 쓰기로 했다(2026-08-25 결정).
-  그래서 `app/core/holidays_sync.py`의 `_DEFAULT_API_KEY`에 실제 NEIS 인증키가
-  하드코딩돼 있다 — 이 저장소와 릴리스가 공개(public)이므로 이 키는 이론적으로
-  누구나 볼 수 있는 상태이며, 이 위험은 알고 감수하기로 한 것이다. 다른 학교에
-  공개 배포하기로 결정이 바뀌면, 이 기본값부터 반드시 제거하고 인증키 없이도
-  정상 배포되는지(설정 화면에서 각자 키를 입력해야만 학사일정이 채워지는지)
-  다시 확인할 것.
+- 저장소 밖 값(v1.16.3~, 2026-10-23 결정): NEIS 인증키와 구글 OAuth 클라이언트는 코드에 적지 않는다.
+  빌드 PC의 저장소 루트 `secrets\`(.gitignore)에 `neis_api_key.txt`(키 한 줄)와
+  `client_secret_….json`(구글 콘솔에서 받은 그대로)을 두면, build.ps1이 scripts/embed_secrets.py로
+  섞어서 `app/core/_embedded_secrets.py`(커밋 안 함)에 넣고 exe에 묶는다. 둘 중 하나라도 없으면
+  build.ps1이 멈춘다(-AllowMissingSecrets로만 우회). 읽는 곳은 app/core/secrets_store.py.
+- 이건 '공개 저장소에 안 올리고 exe 안에서 평문으로 안 보이게' 하는 것까지다. 설치 파일은 공개
+  릴리스이고 프로그램이 스스로 풀어 쓰므로 완전한 암호화는 불가능하다 — 그래서 구글은 '내부'
+  앱, NEIS 키는 조회 전용으로 위험을 작게 둔다. 이 값들을 대화·로그·캡처에 그대로 옮기지 않는다.
+- v1.16.2까지의 NEIS 키는 holidays_sync.py에 평문으로 있었고 git 기록과 지난 릴리스에 남아 있다.
+  기록을 다시 쓰는 대신 NEIS 키를 재발급해 secrets에만 넣는 것을 권한다(사용자 결정 대기).
+- 다른 학교에 공개 배포하기로 바뀌면 secrets 없이 빌드(-AllowMissingSecrets)하고, 설정 화면에서
+  각자 키를 입력해야만 학사일정이 채워지는지 다시 확인할 것.
 
 ## 구글 캘린더 연동 (v1.16.0~)
 - 학교 구글 워크스페이스(jungang.hs.kr)의 '내부(Internal)' OAuth 앱을 쓴다. 각 선생님 PC와
   그 선생님 구글 계정 사이에서만 일정이 오가며, 개발자에게 오는 데이터는 없다.
-- 데스크톱 앱 OAuth 클라이언트 ID/비밀은 `app/core/google_client_config.py`에 넣는다. 데스크톱
-  앱 특성상 이 값은 공개 저장소·설치 파일에서 누구나 볼 수 있다(구글도 데스크톱 앱 비밀은
-  '비밀이 아님'으로 취급). 내부 앱이라 학교 계정 밖에서는 로그인 자체가 막히고, 앱은 로그인
-  결과의 hd가 jungang.hs.kr가 아니면 거부한다 — 이 위험은 NEIS 키와 같은 이유로 감수한다.
-- 테스트할 때는 위 파일 대신 `%LOCALAPPDATA%\TeacherAlimjang\google_client.json`(구글 콘솔에서
-  받은 client_secret JSON 그대로)을 두면 그쪽이 먼저 쓰인다. 이 JSON은 커밋하지 않는다.
+- 데스크톱 앱 OAuth 클라이언트(client_secret_….json)는 위 '저장소 밖 값' 방식으로만 넣는다.
+  내부 앱이라 학교 계정 밖에서는 로그인 자체가 막히고, 앱은 로그인 결과의 hd가 jungang.hs.kr가
+  아니면 거부한다.
+- 테스트: 버전별 테스트 폴더의 테스트_실행.bat이 '쿨메시저 알림장' 폴더의 client_secret_….json·
+  neis_api_key.txt를 찾아 같은 방식으로 넣는다. `%LOCALAPPDATA%\TeacherAlimjang\google_client.json`이
+  있으면 그게 가장 먼저 쓰인다(바꿔 끼우기용). 이 파일들은 커밋하지 않는다.
 - 클라이언트 설정이 없는 빌드에서는 구글 캘린더 메뉴·버튼이 아예 보이지 않는다(정상 동작).
 - 다른 학교에 공개 배포하기로 바뀌면: 내부 앱은 다른 학교 계정이 못 쓰므로 외부 앱 + 구글 검수
   (민감 범위 calendar.events)가 필요하다. 그 전에는 클라이언트 값을 비워 배포할 것.

@@ -168,9 +168,13 @@ class _SettingsFormMixin:
         self.neis_key_input = QLineEdit()
         self.neis_key_input.setEchoMode(QLineEdit.Password)
         self.neis_key_input.setPlaceholderText("NEIS Open API 인증키")
-        existing_neis_key = holidays_sync.load_api_key()
+        # 선생님이 직접 넣은 키만 채운다. 학교 기본 키(설치 파일에 섞여 있음)는 화면에
+        # 꺼내 보이거나 자격 증명에 옮겨 저장하지 않는다.
+        existing_neis_key = holidays_sync.load_own_api_key()
         if existing_neis_key:
             self.neis_key_input.setText(existing_neis_key)
+        elif holidays_sync.has_default_api_key():
+            self.neis_key_input.setPlaceholderText("학교 기본 인증키 사용 중 — 바꿀 때만 입력")
         self.neis_key_input.deselect()
         neis_key_row.addWidget(self.neis_key_input, 1)
 
@@ -252,7 +256,7 @@ class _SettingsFormMixin:
         순수 조회다. Gemini의 on_test()/_set_status()와 동일한 패턴으로
         상태 라벨만 갱신한다(별도 스레드 없음 — Gemini 쪽과 일관성을
         맞춘다)."""
-        api_key = self.neis_key_input.text().strip()
+        api_key = self.neis_key_input.text().strip() or holidays_sync.load_api_key() or ""
         atpt_code = self.neis_atpt_input.text().strip()
         school_code = self.neis_school_input.text().strip()
         self.neis_status_label.setObjectName("Muted")

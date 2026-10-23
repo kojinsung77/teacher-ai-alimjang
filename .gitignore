@@ -22,3 +22,9 @@ app_data/
 
 # 버전별 테스트 폴더에 두는 구글 클라이언트 JSON — 커밋 금지
 /google_client.json
+
+# 저장소에 올리지 않는 값(v1.16.3~): NEIS 인증키·구글 클라이언트 원본과, 빌드 때 섞어 넣는 자동 생성 파일
+secrets/
+app/core/_embedded_secrets.py
+client_secret_*.json
+neis_api_key.txt

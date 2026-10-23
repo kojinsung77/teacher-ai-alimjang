@@ -14,8 +14,8 @@ API는 시도교육청코드+학교코드만 넣으면 그 학교의 휴업일�
 Windows 자격 증명 관리자(keyring)에 저장하는 것을 우선한다. 다만 이 앱은
 당분간 전주중앙여자고등학교 내부에서만 쓰기로 결정했으므로(자세한 내용은
 프로젝트 루트 CLAUDE.md "배포 범위" 참고), keyring에 값이 없는 새 설치에서는
-아래 _DEFAULT_API_KEY(실제 NEIS 인증키가 하드코딩돼 있음)로 대체한다 —
-다른 학교로 공개 배포하기로 결정이 바뀌면 이 기본값부터 제거해야 한다.
+설치 파일에 섞어 넣은 학교 기본 인증키(app/core/secrets_store.py)로 대체한다.
+v1.16.3부터 이 키는 코드(공개 저장소)에 적지 않고 빌드 PC의 secrets 폴더에서만 넣는다.
 시도교육청코드/학교코드는 API 키와 달리 민감하지 않으므로 settings
 테이블(key-value)에 평문으로 둔다 — 다른 학교 선생님도 이 앱을 쓸 수
 있으므로 기본값(전주중앙여자고등학교)만 두고 설정 화면에서 자기 학교
@@ -42,6 +42,7 @@ from urllib.parse import urlencode
 import keyring
 
 from .. import config, db
+from . import secrets_store
 
 _KEYRING_USERNAME = "neis_api_key"
 _API_URL = "https://open.neis.go.kr/hub/SchoolSchedule"
@@ -59,11 +60,8 @@ _SETTING_KEY_SCHOOL_CODE = "neis_school_code"
 _DEFAULT_ATPT_CODE = "P10"
 _DEFAULT_SCHOOL_CODE = "8321103"
 
-# 2026-08-25: 이 앱을 당분간 전주중앙여자고등학교 내부에서만 쓰기로
-# 결정했으므로, NEIS 인증키도 시도교육청코드/학교코드와 같은 방식으로
-# 기본값을 넣어둔다 — 자세한 배경/주의사항은 프로젝트 루트 CLAUDE.md의
-# "배포 범위" 항목 참고.
-_DEFAULT_API_KEY = "82a9e5d7e9574a698489010d5a2639b6"
+# 학교 기본 NEIS 인증키는 v1.16.3부터 코드에 두지 않는다 — secrets_store.neis_api_key()
+# (빌드할 때 secrets\neis_api_key.txt에서 섞어 넣은 값). CLAUDE.md "배포 범위" 참고.
 
 # NEIS SBTR_DD_SC_NM(수업공제일구분명)이 이 값일 때만 "등교는 하지만
 # 행사가 있는 날"이다. 그 외 값은 전부 "등교하지 않는 날"로 취급한다.
@@ -74,8 +72,20 @@ def save_api_key(key: str):
     keyring.set_password(config.KEYRING_SERVICE, _KEYRING_USERNAME, key)
 
 
+def load_own_api_key() -> str | None:
+    """선생님이 설정 화면에서 직접 넣은 키만(학교 기본 키 제외)."""
+    try:
+        return keyring.get_password(config.KEYRING_SERVICE, _KEYRING_USERNAME) or None
+    except Exception:
+        return None
+
+
+def has_default_api_key() -> bool:
+    return bool(secrets_store.neis_api_key())
+
+
 def load_api_key() -> str | None:
-    return keyring.get_password(config.KEYRING_SERVICE, _KEYRING_USERNAME) or _DEFAULT_API_KEY
+    return load_own_api_key() or secrets_store.neis_api_key() or None
 
 
 def get_atpt_code() -> str:

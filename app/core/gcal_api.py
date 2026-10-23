@@ -44,14 +44,50 @@ def _call(method: str, path: str, params: dict = None, body: dict = None, retry_
     except ValueError:
         payload = {}
     if status >= 400:
-        err = (payload.get("error") or {}) if isinstance(payload, dict) else {}
-        reason = err.get("message") or str(status)
-        if status == 403 and "insufficient" in reason.lower():
-            raise GCalError("이 캘린더에 일정을 쓸 권한이 없어요. 설정 → 구글 캘린더에서 다시 연결해 주세요.", status)
-        if status in (403, 404):
-            raise GCalError("캘린더를 찾을 수 없거나 일정을 쓸 권한이 없어요. 캘린더 ID를 확인해 주세요.", status)
-        raise GCalError(f"구글 캘린더 오류: {reason}", status)
+        raise GCalError(_error_message(status, payload, method, path), status)
     return payload
+
+
+def _error_reasons(payload) -> set:
+    """구글 오류 응답의 이유 코드들(accessNotConfigured, SERVICE_DISABLED 등)."""
+    err = (payload.get("error") or {}) if isinstance(payload, dict) else {}
+    if not isinstance(err, dict):
+        return set()
+    out = {str(err.get("status") or "")}
+    for e in err.get("errors") or []:
+        if isinstance(e, dict):
+            out.add(str(e.get("reason") or ""))
+    for d in err.get("details") or []:
+        if isinstance(d, dict):
+            out.add(str(d.get("reason") or ""))
+    return {r for r in out if r}
+
+
+def _error_message(status: int, payload, method: str, path: str) -> str:
+    """화면에 보일 한국어 안내 + 끝에 구글이 준 이유 코드(어느 단계 문제인지 짚을 수 있게)."""
+    err = (payload.get("error") or {}) if isinstance(payload, dict) else {}
+    message = (err.get("message") if isinstance(err, dict) else "") or ""
+    reasons = _error_reasons(payload)
+    code = f" (구글 응답: {status} {', '.join(sorted(reasons)) or '-'})"
+    low = message.lower()
+    print(f"[구글 캘린더 API 오류] {method} {path} → {status} {sorted(reasons)} {message}")
+    if reasons & {"accessNotConfigured", "SERVICE_DISABLED"} or "has not been used" in low or "is disabled" in low:
+        return ("구글 클라우드 프로젝트에서 'Google Calendar API'가 아직 켜져 있지 않아요. "
+                "구글 클라우드 → API 및 서비스 → 라이브러리에서 Google Calendar API [사용]을 누르고, "
+                "켠 직후라면 5분쯤 뒤에 다시 해 보세요." + code)
+    if reasons & {"insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"} or "insufficient" in low:
+        return "구글에 허용한 권한이 모자라요. 설정 → 구글 캘린더에서 [연결 해제] 후 다시 연결해 주세요." + code
+    if reasons & {"rateLimitExceeded", "userRateLimitExceeded", "quotaExceeded", "RATE_LIMIT_EXCEEDED"}:
+        return "구글 캘린더 요청이 잠시 너무 많았어요. 1분쯤 뒤에 다시 해 주세요." + code
+    if reasons & {"domainPolicy", "forbiddenForNonOrganizer"} or "admin" in low:
+        return "학교 구글 관리자 설정 때문에 막혔어요. 정보부에 구글 캘린더 API 사용을 문의해 주세요." + code
+    if path == "/calendars" and method == "POST":
+        return "쿨브리핑 캘린더를 만들지 못했어요." + code
+    if status == 404:
+        return "캘린더나 일정을 찾을 수 없어요. 캘린더 ID를 확인해 주세요." + code
+    if status == 403:
+        return "이 캘린더에 일정을 쓸 권한이 없어요. 내가 쓸 수 있는 캘린더인지 확인해 주세요." + code
+    return f"구글 캘린더 오류: {message or status}" + code
 
 
 def _q(calendar_id: str) -> str:

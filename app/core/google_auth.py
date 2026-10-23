@@ -15,7 +15,8 @@ PyInstaller 묶음에서 빠지는 모듈이 생길 일도 없다.
 클라이언트 정보(client_id/secret)를 찾는 순서
 1) %LOCALAPPDATA%\\TeacherAlimjang\\google_client.json — 구글 클라우드에서 받은
    JSON을 그대로 둔다(배포 전 테스트용, 또는 바꿔 끼울 때)
-2) app/core/google_client_config.py의 상수 — 배포본에 들어가는 값"""
+2) 설치 파일에 섞어 넣은 값(app/core/secrets_store.py) — 빌드 PC의 secrets 폴더에서만
+   넣고 공개 저장소에는 올리지 않는다(v1.16.3~)"""
 
 import base64
 import hashlib
@@ -94,9 +95,10 @@ def load_client_config() -> dict:
                 return {"client_id": info["client_id"], "client_secret": info.get("client_secret", "")}
         except (ValueError, OSError):
             pass
-    from . import google_client_config as gcc
-    if gcc.CLIENT_ID:
-        return {"client_id": gcc.CLIENT_ID, "client_secret": gcc.CLIENT_SECRET}
+    from . import secrets_store
+    embedded = secrets_store.google_client()
+    if embedded:
+        return embedded
     raise GoogleAuthError(
         "구글 캘린더 연결 정보가 아직 프로그램에 들어 있지 않습니다. 만든 사람에게 문의해 주세요."
     )

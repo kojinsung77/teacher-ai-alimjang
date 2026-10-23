@@ -19,10 +19,17 @@
 #   -> 설치 프로그램이 설치 마지막에 탐색기(explorer.exe)를 재시작해 아이콘
 #      캐시를 확실히 비운다(화면이 한 번 깜빡임). 옵션을 안 주면 화면에
 #      영향 없는 가벼운 캐시 갱신만 한다. ISCC에 /DIconChanged=1로 전달된다.
+#
+# 저장소에 올리지 않는 값(v1.16.3~): 프로젝트 루트의 secrets\ 폴더(.gitignore)에
+#   neis_api_key.txt(NEIS 인증키 한 줄)와 client_secret_….json(구글 콘솔에서 받은 그대로)을
+#   둔다. 빌드 직전에 scripts/embed_secrets.py가 섞어서 app/core/_embedded_secrets.py로 넣는다.
+#   둘 중 하나라도 없으면 빌드를 멈춘다(선생님들 PC에서 학사일정·구글 캘린더가 조용히 꺼지는
+#   설치 파일이 나가지 않게). 일부러 빼고 만들 때만: -AllowMissingSecrets
 
 param(
     [switch]$SkipInstaller,
-    [switch]$IconChanged
+    [switch]$IconChanged,
+    [switch]$AllowMissingSecrets
 )
 
 $ErrorActionPreference = "Stop"
@@ -60,9 +67,17 @@ if ($existing) {
 Write-Output "확인 완료"
 
 # ---------- 3) PyInstaller로 처음부터 새로 빌드 ----------
-Write-Step "3/4  PyInstaller 빌드 (clean)"
+Write-Step "3/4  저장소 밖 값 넣기(secrets) + PyInstaller 빌드 (clean)"
 Push-Location $root
 try {
+    python scripts\embed_secrets.py --require (Join-Path $root "secrets")
+    if ($LASTEXITCODE -ne 0) {
+        if ($AllowMissingSecrets) {
+            Write-Output "경고: secrets가 빠진 채로 빌드합니다(-AllowMissingSecrets)."
+        } else {
+            throw "secrets 폴더에 neis_api_key.txt 와 client_secret_….json 이 둘 다 있어야 합니다 (일부러 빼려면 -AllowMissingSecrets)."
+        }
+    }
     python -m PyInstaller --noconfirm --clean TeacherAlimjang.spec
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller 빌드 실패 (exit $LASTEXITCODE)" }
 } finally {
