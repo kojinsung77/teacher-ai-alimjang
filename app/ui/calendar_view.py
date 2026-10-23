@@ -543,7 +543,7 @@ class CalendarView(QWidget):
             self.day_event_label.setVisible(False)
 
         tasks = [t for t in stats.todo_tasks() if t["deadline"] == date_str]
-        gcal_rows, linked_task_ids = self._gcal_rows_for(date_str, {t["id"] for t in tasks})
+        gcal_rows, linked_task_ids = self._gcal_rows_for(date_str, {t["task_id"] for t in tasks})
         if not tasks and not gcal_rows:
             empty = QLabel("이 날짜에 마감인 업무가 없습니다.")
             empty.setObjectName("Muted")
@@ -568,7 +568,7 @@ class CalendarView(QWidget):
             department = t["department"] if "department" in t.keys() else None
             if department:
                 meta_bits.append(department)
-            if t["id"] in linked_task_ids:
+            if t["task_id"] in linked_task_ids:
                 meta_bits.append("📅 구글 캘린더에 있음")
             meta = QLabel("  ·  ".join(meta_bits))
             meta.setObjectName("TaskMeta")
