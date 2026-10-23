@@ -1,7 +1,7 @@
 {
-  "version": "1.15.0",
-  "notes": "• 앱 아이콘이 파랑새로 바뀌었어요\n• [📨 전달 메시지]로 안내문을 만들어요\n• 설정에서 파랑새가 나오는 때를 고를 수 있어요",
-  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.15.0/TeacherAlimjang_Setup_v1.15.0.exe",
-  "sha256": "8ca7a38bef19d96bce35224bd199d1d9318a82a9d29e569d806627b1fa35ced4",
-  "release_date": "2026-10-19"
+  "version": "1.16.3",
+  "notes": "• 📅 구글 캘린더에 일정을 넣고 휴대폰과 함께 써요\n• ⭐ 메시지 즐겨찾기 · 📖 사용설명서\n• 📨 전달 메시지는 [만들기]를 눌러 만들어요",
+  "download_url": "https://github.com/kojinsung77/teacher-ai-alimjang/releases/download/v1.16.3/TeacherAlimjang_Setup_v1.16.3.exe",
+  "sha256": "d19520055d45b2baa3d7081299295281f7980aefd3143d3fc89ce947bd45dd46",
+  "release_date": "2026-10-23"
 }
