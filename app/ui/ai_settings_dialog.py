@@ -13,6 +13,7 @@
 GeneralSettingsDialog와 AISettingsDialog는 폼 구성 로직을 _SettingsFormMixin
 에서 공유해서 코드 중복을 피한다."""
 
+import os
 import webbrowser
 
 from PySide6.QtCore import Qt, Signal
@@ -734,6 +735,14 @@ class SettingsPageView(QWidget, _SettingsFormMixin):
             gcal_card = _SettingsCard("📅", "구글 캘린더", gcal_desc, badge=gcal_badge)
             gcal_card.clicked.connect(self.on_open_gcal)
             self.grid.addWidget(gcal_card, 2, 0)
+        elif os.environ.get("COOLBRIEFING_TEST_COPY"):
+            # 버전별 테스트 폴더에서 켰는데 구글 연결 정보 파일이 없을 때만 — 왜 없는지 알려 준다.
+            # (선생님들께 배포된 앱에서는 이 카드가 나오지 않는다)
+            gcal_card = _SettingsCard("📅", "구글 캘린더 (테스트)",
+                                      "연결 정보 파일이 없어 꺼져 있어요. 눌러서 넣는 방법 보기",
+                                      badge=("⚠ 파일 없음", False))
+            gcal_card.clicked.connect(self._explain_gcal_file)
+            self.grid.addWidget(gcal_card, 2, 0)
 
     # ---------- 액션 ----------
 
@@ -754,6 +763,15 @@ class SettingsPageView(QWidget, _SettingsFormMixin):
         # 메신저 재설정으로 demo_mode/로그인명이 바뀌었을 수 있다.
         self.settingsChanged.emit()
         self.refresh()
+
+    def _explain_gcal_file(self):
+        QMessageBox.information(
+            self, "구글 캘린더 연결 정보",
+            "구글 클라우드 콘솔에서 받은 client_secret_….json 파일(보통 '다운로드' 폴더)을\n"
+            "바탕 화면 → 클로드 코워크 사용폴더 → 쿨메시저 알림장 폴더에 넣은 뒤\n"
+            "테스트 앱을 껐다가 테스트_실행.bat으로 다시 켜세요.\n\n"
+            "파일 이름은 바꾸지 않아도 됩니다.",
+        )
 
     def on_open_gcal(self):
         from .gcal_settings_dialog import GCalSettingsDialog
